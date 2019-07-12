@@ -19,19 +19,12 @@ public:
 
     explicit GridMat(const std::vector<cv::Size>& sizes, const cv::Size maxDisp = cv::Size{1920, 1080}) {
         currSourceID = 0;
+        
+        size_t maxWidth = 54;
+        size_t maxHeight = 64;
 
-        size_t maxWidth = 0;
-        size_t maxHeight = 0;
-        for (size_t i = 0; i < sizes.size(); i++) {
-            maxWidth = std::max(maxWidth, static_cast<size_t>(sizes[i].width));
-            maxHeight = std::max(maxHeight, static_cast<size_t>(sizes[i].height));
-        }
-        if (0 == maxWidth || 0 == maxHeight) {
-            throw std::invalid_argument("Input resolution must not be zero.");
-        }
-
-        size_t nGridCols = static_cast<size_t>(ceil(sqrt(static_cast<float>(sizes.size()))));
-        size_t nGridRows = (sizes.size() - 1) / nGridCols + 1;
+        size_t nGridCols = 20;
+        size_t nGridRows = 30;
         size_t gridMaxWidth = static_cast<size_t>(maxDisp.width/nGridCols);
         size_t gridMaxHeight = static_cast<size_t>(maxDisp.height/nGridRows);
 
