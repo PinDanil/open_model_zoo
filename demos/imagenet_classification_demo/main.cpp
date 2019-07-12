@@ -142,6 +142,7 @@ int main(int argc, char *argv[]) {
 
         std::vector<std::shared_ptr<unsigned char>> imagesData = {};
         std::vector<std::string> validImageNames = {};
+        //std::vector<cv::Size> sizes;
         for (const auto & i : imageNames) {
             FormatReader::ReaderPtr reader(i.c_str());
             if (reader.get() == nullptr) {
@@ -149,6 +150,7 @@ int main(int argc, char *argv[]) {
                 continue;
             }
             /** Store image data **/
+            
             std::shared_ptr<unsigned char> data(
                     reader->getData(inputInfoItem.second->getTensorDesc().getDims()[3],
                                     inputInfoItem.second->getTensorDesc().getDims()[2]));
@@ -178,9 +180,7 @@ int main(int argc, char *argv[]) {
 
         // --------------------------- 6. Prepare input --------------------------------------------------------
         
-        //new
         //const std::vector<cv::Size> sizes;
-        //new
 
         for (auto & item : inputInfo) {
             Blob::Ptr inputBlob = inferRequest.GetBlob(item.first);
@@ -189,19 +189,12 @@ int main(int argc, char *argv[]) {
             size_t num_channels = dims[1];
             size_t image_size = dims[3] * dims[2];
 
-            //new
             //sizes.push_back(cv::Size(dims[3], dims[2]));
-            //new
 
             auto data = inputBlob->buffer().as<PrecisionTrait<Precision::U8>::value_type *>();
             /** Iterate over all input images **/
             for (size_t image_id = 0; image_id < imagesData.size(); ++image_id) {
                 /** Iterate over all pixel in image (b,g,r) **/
-
-                //new
-
-                //new
-
                 for (size_t pid = 0; pid < image_size; pid++) {
                     /** Iterate over all channels **/
                     for (size_t ch = 0; ch < num_channels; ++ch) {
@@ -212,9 +205,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        //new
         //GridMat gridMat(sizes);
-        //new
 
         // -----------------------------------------------------------------------------------------------------
 

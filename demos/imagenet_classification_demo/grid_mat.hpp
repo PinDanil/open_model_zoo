@@ -8,6 +8,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <queue>
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/core/core.hpp>
@@ -17,6 +18,8 @@ public:
     cv::Mat outimg;
 
     explicit GridMat(const std::vector<cv::Size>& sizes, const cv::Size maxDisp = cv::Size{1920, 1080}) {
+        currSourceID = 0;
+
         size_t maxWidth = 0;
         size_t maxHeight = 0;
         for (size_t i = 0; i < sizes.size(); i++) {
@@ -59,7 +62,7 @@ public:
         if (frames.size() > points.size()) {
             throw std::logic_error("Cannot display " + std::to_string(frames.size()) + " channels in a grid with " + std::to_string(points.size()) + " cells");
         }
-
+        currSourceID = 0;
         for (size_t i = 0; i < frames.size(); i++) {
             cv::Mat cell = outimg(cv::Rect(points[i].x, points[i].y, cellSize.width, cellSize.height));
 
@@ -70,12 +73,12 @@ public:
             } else {
                 cv::resize(frames[i], cell, cellSize);
             }
+            currSourceID++;
         }
-        unupdatedSourceIDs.clear();
     }
 
-    void update(const cv::Mat& frame, const size_t sourceID) {
-        cv::Mat cell = outimg(cv::Rect(points[sourceID], cellSize));
+    void update(const cv::Mat& frame) {
+        cv::Mat cell = outimg(cv::Rect(points[currSourceID % points.size()], cellSize));
 
         if ((cellSize.width == frame.cols) && (cellSize.height == frame.rows)) {
             frame.copyTo(cell);
@@ -84,7 +87,8 @@ public:
         } else {
             cv::resize(frame, cell, cellSize);
         }
-        unupdatedSourceIDs.erase(unupdatedSourceIDs.find(sourceID));
+
+        currSourceID++;
     }
 
     bool isFilled() const noexcept {
@@ -102,7 +106,10 @@ public:
     }
 
 private:
+    //General frame size
     cv::Size cellSize;
+    //Current pos in outing
+    size_t currSourceID;
     std::set<size_t> unupdatedSourceIDs;
     std::vector<cv::Point> points;
 };
