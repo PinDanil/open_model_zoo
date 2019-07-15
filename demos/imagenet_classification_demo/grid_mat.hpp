@@ -17,7 +17,7 @@ class GridMat {
 public:
     cv::Mat outimg;
 
-    explicit GridMat(const std::vector<cv::Size>& sizes, const cv::Size maxDisp = cv::Size{1920, 1080}) {
+    explicit GridMat(const cv::Size maxDisp = cv::Size{1920, 1080}) {
         currSourceID = 0;
         
         size_t maxWidth = 54;
@@ -35,7 +35,7 @@ public:
         cellSize.width = static_cast<int>(maxWidth * scaleFactor);
         cellSize.height = static_cast<int>(maxHeight * scaleFactor);
 
-        for (size_t i = 0; i < sizes.size(); i++) {
+        for (size_t i = 0; i < 600; i++) { // 600 = 30*20
             cv::Point p;
             p.x = cellSize.width * (i % nGridCols);
             p.y = cellSize.height * (i / nGridCols);

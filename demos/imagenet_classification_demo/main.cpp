@@ -10,6 +10,7 @@
 
 #include <fstream>
 #include <vector>
+#include <queue>
 #include <memory>
 #include <string>
 #include <map>
@@ -204,9 +205,6 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-
-        //GridMat gridMat(sizes);
-
         // -----------------------------------------------------------------------------------------------------
 
         // --------------------------- 7. Do inference ---------------------------------------------------------
@@ -216,6 +214,9 @@ int main(int argc, char *argv[]) {
         std::condition_variable notEmpty;
         std::mutex queMutex;
         std::unique_lock<std::mutex> lock(queMutex);
+
+        GridMat gridMat();
+        std::queue<cv::Mat> matQue;
 
         inferRequest.SetCompletionCallback(
                 [&] {
@@ -230,7 +231,6 @@ int main(int argc, char *argv[]) {
                     } else {
                          continue sample execution after last Asynchronous inference request execution 
                         condVar.notify_one(); */
-                    
                 });
 
         /* Start async request for the first time */
