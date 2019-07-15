@@ -26,6 +26,10 @@
 #include <samples/args_helper.hpp>
 #include <samples/classification_results.h>
 
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+
 #include <sys/stat.h>
 #include <ext_list.hpp>
 
@@ -209,37 +213,47 @@ int main(int argc, char *argv[]) {
 
         // --------------------------- 7. Do inference ---------------------------------------------------------
         size_t numIterations = 10;
-        size_t curIteration = 0;
+        //size_t curIteration = 0;
         
         std::condition_variable notEmpty;
         std::mutex queMutex;
         std::unique_lock<std::mutex> lock(queMutex);
 
-        GridMat gridMat();
+        GridMat gridMat;
         std::queue<cv::Mat> matQue;
+        cv::Mat tmpMat;
+
+        cv::namedWindow("main window");
 
         inferRequest.SetCompletionCallback(
                 [&] {
-                    
-                    /*
-                    curIteration++;
-                    slog::info << "Completed " << curIteration << " async request execution" << slog::endl;
-                    if (curIteration < numIterations) {
-                         here a user can read output containing inference results and put new input
-                           to repeat async request again 
-                        inferRequest.StartAsync();
-                    } else {
-                         continue sample execution after last Asynchronous inference request execution 
-                        condVar.notify_one(); */
+                    queMutex.lock();
+                    //matQue.push_back();
+                    //inferRequest.getData();
+                    queMutex.unlock();
+
+                    notEmpty.notify_one();
+                    inferRequest.StartAsync();
+
                 });
 
         /* Start async request for the first time */
         slog::info << "Start inference (" << numIterations << " asynchronous executions)" << slog::endl;
         inferRequest.StartAsync();
 
-        /* Wait all repetitions of the async request */
-        notEmpty.wait(lock, [&]{ return curIteration == numIterations; });
+        while(cv::waitKey(10) != 27) {
+            notEmpty.wait(lock, [&]{ return !matQue.empty(); });
 
+            queMutex.lock();
+            tmpMat = matQue.front();
+            matQue.pop();
+            queMutex.unlock();
+
+            gridMat.update(tmpMat);
+            cv::imshow("main window",gridMat.getMat());
+        }
+
+        cv::destroyWindow("main window");
         // -----------------------------------------------------------------------------------------------------
 
         // --------------------------- 8. Process output -------------------------------------------------------
