@@ -25,6 +25,8 @@
 #include <samples/slog.hpp>
 #include <samples/args_helper.hpp>
 #include <samples/classification_results.h>
+#include <samples/ocv_common.hpp>
+#include <samples/common.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -83,8 +85,6 @@ int main(int argc, char *argv[]) {
 
         Core ie;
 
-        //GridMat gridMat;
-
         if (FLAGS_p_msg) {
             ie.SetLogCallback(error_listener);
         }
@@ -130,8 +130,6 @@ int main(int argc, char *argv[]) {
         // -----------------------------------------------------------------------------------------------------
 
         // --------------------------- 3. Configure input & output ---------------------------------------------
-
-        // --------------------------- Prepare input blobs -----------------------------------------------------
         slog::info << "Preparing input blobs" << slog::endl;
 
         /** Taking information about all topology inputs **/
@@ -145,29 +143,24 @@ int main(int argc, char *argv[]) {
         inputInfoItem.second->setPrecision(Precision::U8);
         inputInfoItem.second->setLayout(Layout::NCHW);
 
-        std::vector<std::shared_ptr<unsigned char>> imagesData = {};
         std::vector<std::string> validImageNames = {};
-        //std::vector<cv::Size> sizes;
+        std::vector<Blob::Ptr> inputsImg = {}; //prepared Blobs to InferRequest
+        std::vector<cv::Mat> inputsMat = {}; //vector of Mats to show
+        std::queue<cv::Mat> toShow; //que of Mats to show
+
         for (const auto & i : imageNames) {
-            FormatReader::ReaderPtr reader(i.c_str());
-            if (reader.get() == nullptr) {
-                slog::warn << "Image " + i + " cannot be read!" << slog::endl;
-                continue;
-            }
-            /** Store image data **/
-            
-            std::shared_ptr<unsigned char> data(
-                    reader->getData(inputInfoItem.second->getTensorDesc().getDims()[3],
-                                    inputInfoItem.second->getTensorDesc().getDims()[2]));
-            if (data != nullptr) {
-                imagesData.push_back(data);
+            cv::Mat img = cv::imread(i);
+
+            if(!img.empty()){
                 validImageNames.push_back(i);
+                inputsMat.push_back(img);
+                inputsImg.push_back(wrapMat2Blob(img));
             }
         }
-        if (imagesData.empty()) throw std::logic_error("Valid input images were not found!");
+        if (validImageNames.empty()) throw std::logic_error("Valid input images were not found!");
 
-        /** Setting batch size using image count **/
-        network.setBatchSize(imagesData.size());
+                /** Setting batch size using image count **/
+        network.setBatchSize(inputsImg.size());
         size_t batchSize = network.getBatchSize();
         slog::info << "Batch size is " << std::to_string(batchSize) << slog::endl;
 
@@ -184,57 +177,29 @@ int main(int argc, char *argv[]) {
         // -----------------------------------------------------------------------------------------------------
 
         // --------------------------- 6. Prepare input --------------------------------------------------------
-        
-        //const std::vector<cv::Size> sizes;
 
-        for (auto & item : inputInfo) {
-            Blob::Ptr inputBlob = inferRequest.GetBlob(item.first);
-            SizeVector dims = inputBlob->getTensorDesc().getDims();
-            /** Fill input tensor with images. First b channel, then g and r channels **/
-            size_t num_channels = dims[1];
-            size_t image_size = dims[3] * dims[2];
-
-            //sizes.push_back(cv::Size(dims[3], dims[2]));
-
-            auto data = inputBlob->buffer().as<PrecisionTrait<Precision::U8>::value_type *>();
-            /** Iterate over all input images **/
-            for (size_t image_id = 0; image_id < imagesData.size(); ++image_id) {
-                /** Iterate over all pixel in image (b,g,r) **/
-                for (size_t pid = 0; pid < image_size; pid++) {
-                    /** Iterate over all channels **/
-                    for (size_t ch = 0; ch < num_channels; ++ch) {
-                        /**          [images stride + channels stride + pixel id ] all in bytes            **/
-                        data[image_id * image_size * num_channels + ch * image_size + pid] = imagesData.at(image_id).get()[pid*num_channels + ch];
-                    }
-                }
-            }
-        }
         // -----------------------------------------------------------------------------------------------------
 
         // --------------------------- 7. Do inference ---------------------------------------------------------
         size_t numIterations = 10;
-        //size_t curIteration = 0;
         
         std::condition_variable notEmpty;
         std::mutex queMutex;
         std::unique_lock<std::mutex> lock(queMutex);
 
         GridMat gridMat;
-        std::queue<cv::Mat> matQue;
-        cv::Mat tmpMat;
+        std::queue<Blob::Ptr> que;
+        Blob::Ptr tmpPtr;
 
         cv::namedWindow("main window");
 
         inferRequest.SetCompletionCallback(
                 [&] {
                     queMutex.lock();
-                    //matQue.push_back();
-                    //inferRequest.getData();
                     queMutex.unlock();
 
                     notEmpty.notify_one();
                     inferRequest.StartAsync();
-
                 });
 
         /* Start async request for the first time */
@@ -242,14 +207,14 @@ int main(int argc, char *argv[]) {
         inferRequest.StartAsync();
 
         while(cv::waitKey(10) != 27) {
-            notEmpty.wait(lock, [&]{ return !matQue.empty(); });
+            notEmpty.wait(lock, [&]{ return !que.empty(); });
 
             queMutex.lock();
-            tmpMat = matQue.front();
-            matQue.pop();
+            tmpPtr = que.front();
+            que.pop();
             queMutex.unlock();
 
-            gridMat.update(tmpMat);
+            //gridMat.update(tmpPtr);
             cv::imshow("main window",gridMat.getMat());
         }
 
@@ -257,38 +222,7 @@ int main(int argc, char *argv[]) {
         // -----------------------------------------------------------------------------------------------------
 
         // --------------------------- 8. Process output -------------------------------------------------------
-        slog::info << "Processing output blobs" << slog::endl;
-        OutputsDataMap outputInfo(network.getOutputsInfo());
-        if (outputInfo.size() != 1) throw std::logic_error("Sample supports topologies with 1 output only");
-        Blob::Ptr outputBlob = inferRequest.GetBlob(outputInfo.begin()->first);
 
-        /** Validating -nt value **/
-        const size_t resultsCnt = outputBlob->size() / batchSize;
-        if (FLAGS_nt > resultsCnt || FLAGS_nt < 1) {
-            slog::warn << "-nt " << FLAGS_nt << " is not available for this network (-nt should be less than " \
-                      << resultsCnt+1 << " and more than 0)\n            will be used maximal value : " << resultsCnt << slog::endl;
-            FLAGS_nt = resultsCnt;
-        }
-
-        /** Read labels from file (e.x. AlexNet.labels) **/
-        std::string labelFileName = fileNameNoExt(FLAGS_m) + ".labels";
-        std::vector<std::string> labels;
-
-        std::ifstream inputFile;
-        inputFile.open(labelFileName, std::ios::in);
-        if (inputFile.is_open()) {
-            std::string strLine;
-            while (std::getline(inputFile, strLine)) {
-                trim(strLine);
-                labels.push_back(strLine);
-            }
-        }
-
-        ClassificationResult classificationResult(outputBlob, validImageNames,
-                                                  batchSize, FLAGS_nt,
-                                                  labels);
-        classificationResult.print();
-        // -----------------------------------------------------------------------------------------------------
     }
     catch (const std::exception& error) {
         slog::err << error.what() << slog::endl;
