@@ -2,8 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+file (GLOB_RECURSE SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
+file (GLOB_RECURSE HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp)
+
 ie_add_sample(NAME imagenet_classification_demo
               SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
-              HEADERS classification_sample_async.h grid_mat.hpp
+              HEADERS ${HEADERS}
               DEPENDENCIES format_reader
               OPENCV_DEPENDENCIES core highgui videoio)
