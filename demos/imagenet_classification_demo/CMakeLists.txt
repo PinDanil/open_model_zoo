@@ -9,4 +9,5 @@ ie_add_sample(NAME imagenet_classification_demo
               SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp"
               HEADERS ${HEADERS}
               DEPENDENCIES format_reader
+              INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/include"
               OPENCV_DEPENDENCIES core highgui videoio)

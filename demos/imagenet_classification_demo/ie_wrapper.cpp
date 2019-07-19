@@ -146,6 +146,10 @@ void IEWrapper::infer() {
     request.Infer();
 }
 
+void IEWrapper::StartAsync(){
+    request.StartAsync();
+}
+
 void IEWrapper::reshape(const std::map<std::string, std::vector<unsigned long> > &newBlobsDimsInfo) {
     if (inputBlobsDimsInfo.size() != newBlobsDimsInfo.size()) {
         throw std::runtime_error("Mismatch in the number of blobs being reshaped");

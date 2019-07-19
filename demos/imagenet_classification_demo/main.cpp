@@ -68,122 +68,68 @@ bool ParseAndCheckCommandLine(int argc, char *argv[]) {
 
 int main(int argc, char *argv[]) {
     try {
-        slog::info << "InferenceEngine: " << GetInferenceEngineVersion() << slog::endl;
-
-        // ------------------------------ Parsing and validation of input args ---------------------------------
         if (!ParseAndCheckCommandLine(argc, argv)) {
             return 0;
         }
 
-        /** This vector stores paths to the processed images **/
+        Core ie;
+        gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d);
+        // IRequest, model and devce is set.
+        GridMat gridMat = GridMat();
+
         std::vector<std::string> imageNames;
         parseInputFilesArguments(imageNames);
-        if (imageNames.empty()) throw std::logic_error("No suitable images were found");
-        // -----------------------------------------------------------------------------------------------------
 
-        // --------------------------- 1. Load inference engine -------------------------------------
-        slog::info << "Creating Inference Engine" << slog::endl;
+        //set precision and layout!
 
-        Core ie;
-
-        gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_d, FLAGS_m);
-
-        /** Printing device version **/
-        std::cout << ie.GetVersions(FLAGS_d) << std::endl;
-        // -----------------------------------------------------------------------------------------------------
-
-        // --------------------------- 3. Configure input & output ---------------------------------------------
-        slog::info << "Preparing input blobs" << slog::endl;
-
-        /** Taking information about all topology inputs **/
-        InputsDataMap inputInfo(ieWrapper.getInputsInfo());
+        InputsDataMap inputInfo(ieWrapper.network.getInputsInfo());
         if (inputInfo.size() != 1) throw std::logic_error("Sample supports topologies with 1 input only");
-
-        auto inputInfoItem = *inputInfo.begin();
-
-        /** Specifying the precision and layout of input data provided by the user.
-         * This should be called before load of the network to the device **/
-        inputInfoItem.second->setPrecision(Precision::U8);
-        inputInfoItem.second->setLayout(Layout::NCHW);
-
-        std::vector<std::string> validImageNames = {};
-        //std::vector<Blob::Ptr> inputsImg = {}; //prepared Blobs to InferRequest
-        std::vector<cv::Mat> inputsMat = {}; //vector of Mats to show
-        std::queue<cv::Mat> toShow; //que of Mats to show
-       // long int curImg = 0;
-
-        for (const auto & i : imageNames) {
-            cv::Mat img = cv::imread(i);
-
-            if(!img.empty()){
-                validImageNames.push_back(i);
-                inputsMat.push_back(img);
-                //inputsImg.push_back(wrapMat2Blob(img));
-            }
-        }
-        if (validImageNames.empty()) throw std::logic_error("Valid input images were not found!");
-
-                /** Setting batch size using image count **/
-        network.setBatchSize(inputsMat.size());
-        size_t batchSize = network.getBatchSize();
-        slog::info << "Batch size is " << std::to_string(batchSize) << slog::endl;
-
-        // -----------------------------------------------------------------------------------------------------
-
-        // --------------------------- 4. Loading model to the device ------------------------------------------
-        slog::info << "Loading model to the device" << slog::endl;
-        ExecutableNetwork executable_network = ie.LoadNetwork(network, FLAGS_d);
-        // -----------------------------------------------------------------------------------------------------
-
-        // --------------------------- 5. Create infer request -------------------------------------------------
-        slog::info << "Create infer request" << slog::endl;
-        InferRequest inferRequest = executable_network.CreateInferRequest();
-        // -----------------------------------------------------------------------------------------------------
-
-        // --------------------------- 6. Do inference ---------------------------------------------------------
-        size_t numIterations = 10;
         
-        std::condition_variable notEmpty;
-        std::mutex queMutex;
-        std::unique_lock<std::mutex> lock(queMutex);
+        //read all imgs
+        std::vector<cv::Mat> inputImgs = {};
+        for (const auto & i : imageNames) {
+            inputImgs.push_back(cv::imread(i));
+        }
+        
+        size_t batchSize = inputImgs.size();
+        size_t curImg = 0;
 
-        GridMat gridMat;
-        cv::Mat tmpPtr;
+        ieWrapper.network.setBatchSize(1);//rm in fufure
 
-        cv::namedWindow("main window");
+        std::queue<cv::Mat> showMats = {};
 
-        inferRequest.SetCompletionCallback(
-                [&] {
-                    queMutex.lock();
-                    //toShow.push_back(inputsMat[(curImg % inputsMat.size())]);
-                    //++curImg;
-                    //queMutex.unlock();               
-                    notEmpty.notify_one();
+        std::condition_variable condVar;
+        std::mutex mutex;
+        std::unique_lock<std::mutex> lock(mutex);
+        ieWrapper.request.SetCompletionCallback(
+                [&]{
+                    //set some staff
+                    /*
+                    
+                     */
+                    mutex.lock();
+                    showMat.push_back(inputImg[curImg%batchSize]);
+                    curImg++;
+                    mutex.unlock();
 
-                    inferRequest.StartAsync();
+                    //set new Mat to ie
+
+                    condVar.notify_one();
                 });
 
-        /* Start async request for the first time */
-        slog::info << "Start inference (" << numIterations << " asynchronous executions)" << slog::endl;
-        inferRequest.StartAsync();
+        //srt first mat to ie
 
-        while(cv::waitKey(10) != 27) {
-            notEmpty.wait(lock, [&]{ return !toShow.empty(); });
+        //while(...) { show_Imgs(); }
 
-            queMutex.lock();
-            tmpPtr = toShow.front();
-            toShow.pop();
-            queMutex.unlock();
+        ieWrapper.request.StartAsync();
 
-            gridMat.update(tmpPtr);
-            cv::imshow("main window",gridMat.getMat());
-        }
+        condVar.wait(lock);
+        
+        gridMat.update(inputImgs[0]);
+        cv::imshow("main", gridMat.getMat());
+        cv::waitKey();
 
-        cv::destroyWindow("main window");
-        // -----------------------------------------------------------------------------------------------------
-
-        // --------------------------- 7. Process output -------------------------------------------------------
-
+        return 0;
     }
     catch (const std::exception& error) {
         slog::err << error.what() << slog::endl;

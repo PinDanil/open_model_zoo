@@ -14,7 +14,6 @@
 
 
 #include <ie_iextension.h>
-#include <ie_cnn_network.h>
 #include <ext_list.hpp>
 
 #include <samples/ocv_common.hpp>
@@ -39,8 +38,6 @@ public:
 
     void printPerlayerPerformance() const;
 
-    InputsDataMap getInputInfo(){ return network.getInputInfo(); }
-
     const std::map<std::string, std::vector<unsigned long>>& getIputBlobDimsInfo() const;
     const std::map<std::string, std::vector<unsigned long>>& getOutputBlobDimsInfo() const;
 
@@ -48,7 +45,8 @@ public:
 
     void infer();
 
-private:
+    void StartAsync();
+//protected:
     std::string modelPath;
     std::string deviceName;
     InferenceEngine::Core& ie;
