@@ -7,6 +7,8 @@
 * @file classification_sample_async/main.cpp
 * @example classification_sample_async/main.cpp
 */
+#ifndef __IMAGENET_CLASSIFICATION_DEMO__
+#define __IMAGENET_CLASSIFICATION_DEMO__
 
 #include <fstream>
 #include <vector>
@@ -80,7 +82,7 @@ int main(int argc, char *argv[]) {
         std::vector<std::string> imageNames;
         parseInputFilesArguments(imageNames);
 
-        //set precision and layout!
+        //TODO: set precision and layout!
 
         InputsDataMap inputInfo(ieWrapper.network.getInputsInfo());
         if (inputInfo.size() != 1) throw std::logic_error("Sample supports topologies with 1 input only");
@@ -94,9 +96,9 @@ int main(int argc, char *argv[]) {
         size_t batchSize = inputImgs.size();
         size_t curImg = 0;
 
-        ieWrapper.network.setBatchSize(1);//rm in fufure
+        ieWrapper.network.setBatchSize(1);//TODO:rm in fufure
 
-        std::queue<cv::Mat> showMats = {};
+        std::queue<cv::Mat> showMats;
 
         std::condition_variable condVar;
         std::mutex mutex;
@@ -108,18 +110,27 @@ int main(int argc, char *argv[]) {
                     
                      */
                     mutex.lock();
-                    showMat.push_back(inputImg[curImg%batchSize]);
+                    showMats.push(inputImgs[curImg%batchSize]);
                     curImg++;
                     mutex.unlock();
+                    condVar.notify_one();
 
                     //set new Mat to ie
-
-                    condVar.notify_one();
+                    /*
+                    ieWrapper.SetInputBlob("Img", inputImgs[curImg%batchSize]);
+                    ieWrapper.tartAsync();
+                    */
                 });
 
         //srt first mat to ie
 
         //while(...) { show_Imgs(); }
+        /*
+        while(waitKey()!=27){
+            
+        }
+        */
+
 
         ieWrapper.request.StartAsync();
 
@@ -145,3 +156,5 @@ int main(int argc, char *argv[]) {
                                 "please use the dedicated benchmark_app tool" << slog::endl;
     return 0;
 }
+
+#endif //__IMAGENET_CLASSIFICATION_DEMO__

@@ -57,7 +57,7 @@ void IEWrapper::setExecPart() {
         layerData->setPrecision(Precision::FP32);
     }
 
-    if (FLAGS_d.find("CPU") != std::string::npos) {
+    if (deviceName.find("CPU") != std::string::npos) {
             /**
              * cpu_extensions library is compiled from "extension" folder containing
              * custom MKLDNNPlugin layer implementations. These layers are not supported
@@ -146,7 +146,7 @@ void IEWrapper::infer() {
     request.Infer();
 }
 
-void IEWrapper::StartAsync(){
+void IEWrapper::startAsync(){
     request.StartAsync();
 }
 

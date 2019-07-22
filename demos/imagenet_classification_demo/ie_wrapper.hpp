@@ -45,7 +45,7 @@ public:
 
     void infer();
 
-    void StartAsync();
+    void startAsync();
 //protected:
     std::string modelPath;
     std::string deviceName;
