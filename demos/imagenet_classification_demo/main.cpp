@@ -86,7 +86,8 @@ int main(int argc, char *argv[]) {
 
         InputsDataMap inputInfo(ieWrapper.network.getInputsInfo());
         if (inputInfo.size() != 1) throw std::logic_error("Sample supports topologies with 1 input only");
-        
+        std::string netName = inputInfo.begin()->first;
+
         //read all imgs
         std::vector<cv::Mat> inputImgs = {};
         for (const auto & i : imageNames) {
@@ -96,50 +97,64 @@ int main(int argc, char *argv[]) {
         size_t batchSize = inputImgs.size();
         size_t curImg = 0;
 
-        ieWrapper.network.setBatchSize(1);//TODO:rm in fufure
+        //std::cout<<batchSize<<std::endl;
+
+        //ieWrapper.network.setBatchSize(1);//TODO:rm in fufure
 
         std::queue<cv::Mat> showMats;
-
         std::condition_variable condVar;
         std::mutex mutex;
-        std::unique_lock<std::mutex> lock(mutex);
+        std::mutex signal;
+        std::unique_lock<std::mutex> lock(signal);
         ieWrapper.request.SetCompletionCallback(
                 [&]{
                     //set some staff
-                    /*
                     
-                     */
                     mutex.lock();
                     showMats.push(inputImgs[curImg%batchSize]);
                     curImg++;
                     mutex.unlock();
+                    std::cout<<'0'<<std::endl;
                     condVar.notify_one();
-
-                    //set new Mat to ie
-                    /*
-                    ieWrapper.SetInputBlob("Img", inputImgs[curImg%batchSize]);
-                    ieWrapper.tartAsync();
-                    */
+                    std::cout<<'1'<<std::endl;
+                    //set new Mat to ie   
+                    //ieWrapper.setInputBlob(netName, inputImgs.at(curImg%batchSize));
+                    
+                    ieWrapper.startAsync();
                 });
 
-        //srt first mat to ie
-
-        //while(...) { show_Imgs(); }
-        /*
-        while(waitKey()!=27){
-            
-        }
-        */
-
-
-        ieWrapper.request.StartAsync();
-
-        condVar.wait(lock);
         
-        gridMat.update(inputImgs[0]);
+        
+        cv::namedWindow("main");
         cv::imshow("main", gridMat.getMat());
-        cv::waitKey();
+        cv::Mat tmpMat;
+        
+        ieWrapper.setInputBlob(netName, inputImgs[curImg%batchSize]);
+        ieWrapper.startAsync();
 
+        while(true){
+            std::cout<<'2'<<std::endl;
+            
+            condVar.wait(lock, [&]{return !showMats.empty();});
+            mutex.lock();
+            std::cout<<'3'<<std::endl;
+            tmpMat = showMats.front();
+            showMats.pop();
+            mutex.unlock();
+            //lock.unlock();
+            
+            std::cout<<'4'<<std::endl;
+            gridMat.update(tmpMat);
+            std::cout<<'5'<<std::endl;
+            cv::imshow("main", gridMat.getMat());
+            std::cout<<'6'<<std::endl;
+            char key = static_cast<char>(cv::waitKey(10));
+            //resultsMarker.toggle(key);
+            // Press 'Esc' to quit, 'f' to flip the video horizontally
+            if (key == 27)
+                break;
+        }
+        
         return 0;
     }
     catch (const std::exception& error) {
