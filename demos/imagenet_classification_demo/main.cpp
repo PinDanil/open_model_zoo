@@ -77,7 +77,6 @@ int main(int argc, char *argv[]) {
         Core ie;
         gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d);
         // IRequest, model and devce is set.
-        GridMat gridMat = GridMat();
 
         std::vector<std::string> imageNames;
         parseInputFilesArguments(imageNames);
@@ -111,10 +110,13 @@ int main(int argc, char *argv[]) {
                     ieWrapper.setInputBlob(netName, inputImgs.at(curImg%batchSize));
                     ieWrapper.startAsync();
                 });
-      
+
+        GridMat gridMat = GridMat();
         cv::namedWindow("main");
         cv::imshow("main", gridMat.getMat());
         
+        gridMat.textUpdate("Hello worrld!");
+
         ieWrapper.setInputBlob(netName, inputImgs[curImg%batchSize]);
         ieWrapper.startAsync();
 
@@ -138,6 +140,8 @@ int main(int argc, char *argv[]) {
                 break;
         }
         
+        cv::destroyWindow("main");
+
         return 0;
     }
     catch (const std::exception& error) {

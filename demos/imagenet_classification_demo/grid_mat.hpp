@@ -82,6 +82,23 @@ public:
         }
 
         currSourceID++;
+
+        textUpdate("Wow");
+    }
+
+    void textUpdate(std::string str){
+        /* 
+        auto frameHeight = outimg.rows;
+        double fontScale = 1.6 * frameHeight / 640;
+        int thickness = 2;
+        */
+        auto fontColor = cv::Scalar(255, 255, 255);
+        //double overallFPS = 1000. / overallTime;
+        //double inferenceFPS = 1000. / inferenceTime;
+        //cv::format("Overall FPS: %0.0f, Inference FPS: %0.0f", overallFPS, inferenceFPS)
+        cv::putText(outimg,
+                    str,
+                    cv::Point(100, 100), cv::FONT_HERSHEY_PLAIN, 100, fontColor, 100);
     }
 
     bool isFilled() const noexcept {
