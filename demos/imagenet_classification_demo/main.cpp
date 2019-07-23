@@ -94,63 +94,46 @@ int main(int argc, char *argv[]) {
             inputImgs.push_back(cv::imread(i));
         }
         
-        size_t batchSize = inputImgs.size();
         size_t curImg = 0;
-
-        //std::cout<<batchSize<<std::endl;
-
-        //ieWrapper.network.setBatchSize(1);//TODO:rm in fufure
-
+        size_t batchSize = inputImgs.size();
         std::queue<cv::Mat> showMats;
         std::condition_variable condVar;
         std::mutex mutex;
-        std::mutex signal;
-        std::unique_lock<std::mutex> lock(signal);
         ieWrapper.request.SetCompletionCallback(
                 [&]{
-                    //set some staff
-                    
                     mutex.lock();
                     showMats.push(inputImgs[curImg%batchSize]);
                     curImg++;
                     mutex.unlock();
-                    std::cout<<'0'<<std::endl;
-                    condVar.notify_one();
-                    std::cout<<'1'<<std::endl;
-                    //set new Mat to ie   
-                    //ieWrapper.setInputBlob(netName, inputImgs.at(curImg%batchSize));
                     
+                    condVar.notify_one();  
+                    
+                    ieWrapper.setInputBlob(netName, inputImgs.at(curImg%batchSize));
                     ieWrapper.startAsync();
                 });
-
-        
-        
+      
         cv::namedWindow("main");
         cv::imshow("main", gridMat.getMat());
-        cv::Mat tmpMat;
         
         ieWrapper.setInputBlob(netName, inputImgs[curImg%batchSize]);
         ieWrapper.startAsync();
 
+        cv::Mat tmpMat;
         while(true){
-            std::cout<<'2'<<std::endl;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                while(showMats.empty()){   
+                condVar.wait(lock);
+                }
+                tmpMat = showMats.front();
+                showMats.pop();
+            }
             
-            condVar.wait(lock, [&]{return !showMats.empty();});
-            mutex.lock();
-            std::cout<<'3'<<std::endl;
-            tmpMat = showMats.front();
-            showMats.pop();
-            mutex.unlock();
-            //lock.unlock();
-            
-            std::cout<<'4'<<std::endl;
             gridMat.update(tmpMat);
-            std::cout<<'5'<<std::endl;
             cv::imshow("main", gridMat.getMat());
-            std::cout<<'6'<<std::endl;
+            
             char key = static_cast<char>(cv::waitKey(10));
-            //resultsMarker.toggle(key);
-            // Press 'Esc' to quit, 'f' to flip the video horizontally
+            // Press 'Esc' to quit
             if (key == 27)
                 break;
         }
