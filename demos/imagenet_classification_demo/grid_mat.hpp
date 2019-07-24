@@ -87,15 +87,30 @@ public:
     }
 
     void textUpdate(double FPS){
+        //set rectangle 
+        size_t colunmNum = 1080;
+        cv::Point p1 = cv::Point(0,0);
+        cv::Point p2 = cv::Point(colunmNum, 30);
+        
+        rectangle(outimg,p1,p2,
+            cv::Scalar(0,0,0), cv::FILLED);
+        
+        
+        
+        //set text        
+        
+        
+        
+        
         auto frameHeight = outimg.rows;
-        double fontScale = 1.6 * frameHeight / 640;
+        double fontScale = frameHeight / 640;
         auto fontColor = cv::Scalar(0, 255, 0);
         int thickness = 2;
 
         cv::putText(outimg,
                     cv::format("Overall FPS: %0.0f", FPS),
                     cv::Point(10, static_cast<int>(30 * fontScale / 1.6)),
-                    cv::FONT_HERSHEY_PLAIN, fontScale, fontColor, thickness);
+                    cv::FONT_HERSHEY_SCRIPT_SIMPLEX, fontScale, fontColor, thickness);
         /*
         cv::putText(outimg, str,
                     cv::Point2f(10, 35),
