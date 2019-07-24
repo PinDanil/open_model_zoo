@@ -93,15 +93,24 @@ int main(int argc, char *argv[]) {
             inputImgs.push_back(cv::imread(i));
         }
         
+        bool quitFlag = false;
+
+        int tInferenceBegins;
+        int tInferenceEnds;
+        double overallTime = 0.;
+
         size_t curImg = 0;
         size_t batchSize = inputImgs.size();
         std::queue<cv::Mat> showMats;
+        
         std::condition_variable condVar;
         std::mutex mutex;
-        bool quitFlag = false;
         ieWrapper.request.SetCompletionCallback(
                 [&]{
                     if(!quitFlag) {
+                    tInferenceEnds = cv::getTickCount();
+                    overallTime = (tInferenceEnds - tInferenceBegins) * 1000. / cv::getTickFrequency();
+                    
                     mutex.lock();
                     showMats.push(inputImgs[curImg%batchSize]);
                     curImg++;
@@ -110,6 +119,7 @@ int main(int argc, char *argv[]) {
                     condVar.notify_one();  
                     
                     ieWrapper.setInputBlob(netName, inputImgs.at(curImg%batchSize));
+                    tInferenceBegins = cv::getTickCount();
                     ieWrapper.startAsync();
                     }
                 });
@@ -117,10 +127,9 @@ int main(int argc, char *argv[]) {
         GridMat gridMat = GridMat();
         cv::namedWindow("main");
         cv::imshow("main", gridMat.getMat());
-        
-        gridMat.textUpdate("Hello worrld!");
 
         ieWrapper.setInputBlob(netName, inputImgs[curImg%batchSize]);
+        tInferenceBegins = cv::getTickCount();
         ieWrapper.startAsync();
 
         cv::Mat tmpMat;
@@ -135,6 +144,7 @@ int main(int argc, char *argv[]) {
             }
             
             gridMat.update(tmpMat);
+            gridMat.textUpdate(overallTime);
             cv::imshow("main", gridMat.getMat());
             
             char key = static_cast<char>(cv::waitKey(10));

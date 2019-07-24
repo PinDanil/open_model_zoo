@@ -86,14 +86,14 @@ public:
         //textUpdate("Wow");
     }
 
-    void textUpdate(std::string str){
+    void textUpdate(double FPS){
         auto frameHeight = outimg.rows;
         double fontScale = 1.6 * frameHeight / 640;
-        auto fontColor = cv::Scalar(250, 250, 250);
+        auto fontColor = cv::Scalar(0, 255, 0);
         int thickness = 2;
 
         cv::putText(outimg,
-                    str,
+                    cv::format("Overall FPS: %0.0f", FPS),
                     cv::Point(10, static_cast<int>(30 * fontScale / 1.6)),
                     cv::FONT_HERSHEY_PLAIN, fontScale, fontColor, thickness);
         /*
