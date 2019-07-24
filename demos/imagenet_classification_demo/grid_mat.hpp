@@ -17,32 +17,24 @@ class GridMat {
 public:
     cv::Mat outimg;
 
-    explicit GridMat(const cv::Size maxDisp = cv::Size{1920, 1080}) {
+    explicit GridMat(size_t cNum, size_t rNum, size_t rh = 60, const cv::Size maxDisp = cv::Size{1080, 1920}):
+    rectangleHeight(rh) {
         currSourceID = 0;
+
+        cellSize.width = maxDisp.width * 1. / cNum;
+        cellSize.height = (maxDisp.height - rectangleHeight) * 1. / rNum;
         
-        size_t maxWidth = 54;
-        size_t maxHeight = 64;
+        //size_t nGridCols = static_cast<size_t>(ceil(sqrt(static_cast<float>(sizes.size()))));
+        //size_t nGridRows = (sizes.size() - 1) / nGridCols + 1;
 
-        size_t nGridCols = 20;
-        size_t nGridRows = 30;
-        size_t gridMaxWidth = static_cast<size_t>(maxDisp.width/nGridCols);
-        size_t gridMaxHeight = static_cast<size_t>(maxDisp.height/nGridRows);
-
-        float scaleWidth = static_cast<float>(gridMaxWidth) / maxWidth;
-        float scaleHeight = static_cast<float>(gridMaxHeight) / maxHeight;
-        float scaleFactor = std::min(1.f, std::min(scaleWidth, scaleHeight));
-
-        cellSize.width = static_cast<int>(maxWidth * scaleFactor);
-        cellSize.height = static_cast<int>(maxHeight * scaleFactor);
-
-        for (size_t i = 0; i < 600; i++) { // 600 = 30*20
+        for (size_t i = 0; i < cNum * rNum; i++) {
             cv::Point p;
-            p.x = cellSize.width * (i % nGridCols);
-            p.y = cellSize.height * (i / nGridCols);
+            p.x = cellSize.width * (i % cNum);
+            p.y = rectangleHeight + (cellSize.height * (i / cNum));
             points.push_back(p);
         }
 
-        outimg.create(cellSize.height * nGridRows, cellSize.width * nGridCols, CV_8UC3);
+        outimg.create((cellSize.height * rNum) + rectangleHeight, cellSize.width * cNum, CV_8UC3);
         outimg.setTo(0);
         clear();
     }
@@ -80,28 +72,19 @@ public:
         } else {
             cv::resize(frame, cell, cellSize);
         }
-
         currSourceID++;
-
-        //textUpdate("Wow");
     }
 
     void textUpdate(double FPS){
         //set rectangle 
-        size_t colunmNum = 1080;
+        size_t colunmNum = outimg.cols;
         cv::Point p1 = cv::Point(0,0);
-        cv::Point p2 = cv::Point(colunmNum, 30);
+        cv::Point p2 = cv::Point(colunmNum, rectangleHeight);
         
         rectangle(outimg,p1,p2,
             cv::Scalar(0,0,0), cv::FILLED);
         
-        
-        
         //set text        
-        
-        
-        
-        
         auto frameHeight = outimg.rows;
         double fontScale = frameHeight / 640;
         auto fontColor = cv::Scalar(0, 255, 0);
@@ -110,13 +93,7 @@ public:
         cv::putText(outimg,
                     cv::format("Overall FPS: %0.0f", FPS),
                     cv::Point(10, static_cast<int>(30 * fontScale / 1.6)),
-                    cv::FONT_HERSHEY_SCRIPT_SIMPLEX, fontScale, fontColor, thickness);
-        /*
-        cv::putText(outimg, str,
-                    cv::Point2f(10, 35),
-                    cv::FONT_HERSHEY_PLAIN,
-                    0.7, cv::Scalar{255, 255, 255});
-        */
+                    cv::FONT_HERSHEY_PLAIN, fontScale, fontColor, thickness);
     }
 
     bool isFilled() const noexcept {
@@ -134,12 +111,12 @@ public:
     }
 
 private:
-    //General frame size
     cv::Size cellSize;
     //Current pos in outing
     size_t currSourceID;
     std::set<size_t> unupdatedSourceIDs;
     std::vector<cv::Point> points;
+    size_t rectangleHeight;
 };
 
 void fillROIColor(cv::Mat& displayImage, cv::Rect roi, cv::Scalar color, double opacity) {

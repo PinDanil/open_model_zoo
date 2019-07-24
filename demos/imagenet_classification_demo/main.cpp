@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
                     }
                 });
 
-        GridMat gridMat = GridMat();
+        GridMat gridMat = GridMat(10, 15);
         cv::namedWindow("main");
         cv::imshow("main", gridMat.getMat());
 
