@@ -98,8 +98,10 @@ int main(int argc, char *argv[]) {
         std::queue<cv::Mat> showMats;
         std::condition_variable condVar;
         std::mutex mutex;
+        bool quitFlag = false;
         ieWrapper.request.SetCompletionCallback(
                 [&]{
+                    if(!quitFlag) {
                     mutex.lock();
                     showMats.push(inputImgs[curImg%batchSize]);
                     curImg++;
@@ -109,6 +111,7 @@ int main(int argc, char *argv[]) {
                     
                     ieWrapper.setInputBlob(netName, inputImgs.at(curImg%batchSize));
                     ieWrapper.startAsync();
+                    }
                 });
 
         GridMat gridMat = GridMat();
@@ -136,8 +139,10 @@ int main(int argc, char *argv[]) {
             
             char key = static_cast<char>(cv::waitKey(10));
             // Press 'Esc' to quit
-            if (key == 27)
+            if (key == 27){
+                quitFlag = true;
                 break;
+            }
         }
         
         cv::destroyWindow("main");
