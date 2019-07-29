@@ -107,9 +107,7 @@ int main(int argc, char *argv[]) {
         std::mutex mutex;
         ieWrapper.request.SetCompletionCallback(
                 [&]{
-                    if(!quitFlag) {
-                        int curInputImg;
-                    
+                    if(!quitFlag) {                        
                         {
                             std::unique_lock<std::mutex> lock(mutex);
                             curInputImg = curImg%batchSize;
