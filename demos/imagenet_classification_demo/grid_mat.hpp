@@ -75,7 +75,7 @@ public:
         currSourceID++;
     }
 
-    void textUpdate(double FPS){
+    void textUpdate(double overSPF, double curSPF){
         //set rectangle 
         size_t colunmNum = outimg.cols;
         cv::Point p1 = cv::Point(0,0);
@@ -85,13 +85,14 @@ public:
             cv::Scalar(0,0,0), cv::FILLED);
         
         //set text        
-        auto frameHeight = outimg.rows;
-        double fontScale = frameHeight / 640;
+        auto frameWidth = outimg.cols;
+        double fontScale = frameWidth * 1. / 640;
         auto fontColor = cv::Scalar(0, 255, 0);
         int thickness = 2;
 
         cv::putText(outimg,
-                    cv::format("Overall FPS: %0.0f", FPS),
+                    cv::format("Overall FPS: %0.0f Current FPS: %0.0f Overall mSPF: %0.0f Current mSPF: %0.0f",
+                    1./overSPF, 1./curSPF, 1000 * overSPF, 1000 * curSPF),
                     cv::Point(10, static_cast<int>(30 * fontScale / 1.6)),
                     cv::FONT_HERSHEY_PLAIN, fontScale, fontColor, thickness);
     }
@@ -118,23 +119,3 @@ private:
     std::vector<cv::Point> points;
     size_t rectangleHeight;
 };
-
-void fillROIColor(cv::Mat& displayImage, cv::Rect roi, cv::Scalar color, double opacity) {
-    if (opacity > 0) {
-        roi = roi & cv::Rect(0, 0, displayImage.cols, displayImage.rows);
-        cv::Mat textROI = displayImage(roi);
-        cv::addWeighted(color, opacity, textROI, 1.0 - opacity , 0.0, textROI);
-    }
-}
-
-void putTextOnImage(cv::Mat& displayImage, std::string str, cv::Point p,
-                    cv::HersheyFonts font, double fontScale, cv::Scalar color,
-                    int thickness = 1, cv::Scalar bgcolor = cv::Scalar(),
-                    double opacity = 0) {
-    int baseline = 0;
-    cv::Size textSize = cv::getTextSize(str, font, 0.5, 1, &baseline);
-    fillROIColor(displayImage, cv::Rect(cv::Point(p.x, p.y + baseline),
-                                        cv::Point(p.x + textSize.width, p.y - textSize.height)),
-                 bgcolor, opacity);
-    cv::putText(displayImage, str, p, font, fontScale, color, thickness);
-}
