@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
 
         InputsDataMap inputInfo(ieWrapper.network.getInputsInfo());
         if (inputInfo.size() != 1) throw std::logic_error("Sample supports topologies with 1 input only");
-        std::string netName = inputInfo.begin()->first;
+        std::string inputBlobName = inputInfo.begin()->first;
 
         //read all imgs
         std::vector<cv::Mat> inputImgs = {};
@@ -108,22 +108,23 @@ int main(int argc, char *argv[]) {
         ieWrapper.request.SetCompletionCallback(
                 [&]{
                     if(!quitFlag) {
-                    int curInputImg;
+                        int curInputImg;
                     
-                    mutex.lock();
-                    curInputImg = curImg%batchSize;
-                    showMats.push(inputImgs[curInputImg]);
-                    ++curImg;
+                        {
+                            std::unique_lock<std::mutex> lock(mutex);
+                            curInputImg = curImg%batchSize;
+                            showMats.push(inputImgs[curInputImg]);
+                            ++curImg;
 
-                    sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
-                    ++framesNum;
-                    mutex.unlock();
+                            sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
+                            ++framesNum;
+                        }
+
+                        condVar.notify_one();  
                     
-                    condVar.notify_one();  
-                    
-                    ieWrapper.setInputBlob(netName, inputImgs.at(curInputImg));
-                    startTime = cv::getTickCount();
-                    ieWrapper.startAsync();
+                        ieWrapper.setInputBlob(inputBlobName, inputImgs.at(curInputImg));
+                        startTime = cv::getTickCount();
+                        ieWrapper.startAsync();
                     }
                 });
 
@@ -131,14 +132,14 @@ int main(int argc, char *argv[]) {
         cv::namedWindow("main");
         cv::imshow("main", gridMat.getMat());
 
-        ieWrapper.setInputBlob(netName, inputImgs[curImg%batchSize]);
+        ieWrapper.setInputBlob(inputBlobName, inputImgs[curImg%batchSize]);
         startTime = cv::getTickCount();
         ieWrapper.startAsync();
 
         lastShowTime = cv::getTickCount();
 
         cv::Mat tmpMat;
-        while(true){
+        while(true) {
             {
                 std::unique_lock<std::mutex> lock(mutex);
                 while(showMats.empty()){   
