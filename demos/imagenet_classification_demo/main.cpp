@@ -95,9 +95,12 @@ int main(int argc, char *argv[]) {
         
         bool quitFlag = false;
 
-        int tInferenceBegins;
-        int tInferenceEnds;
-        double overallTime = 0.;
+        //Out info measure
+        int64 framesNum = 0;
+        int64 sumTime = 0;
+        int64 startTime = 0;
+        double lastInferTime = 0;
+        double lastShowTime = cv::getTickCount();
 
         size_t curImg = 0;
         size_t batchSize = inputImgs.size();
@@ -108,18 +111,18 @@ int main(int argc, char *argv[]) {
         ieWrapper.request.SetCompletionCallback(
                 [&]{
                     if(!quitFlag) {
-                    tInferenceEnds = cv::getTickCount();
-                    overallTime = (tInferenceEnds - tInferenceBegins) * 1000. / cv::getTickFrequency();
-                    
                     mutex.lock();
                     showMats.push(inputImgs[curImg%batchSize]);
-                    curImg++;
+                    ++curImg;
+
+                    sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
+                    ++framesNum;
                     mutex.unlock();
                     
                     condVar.notify_one();  
                     
                     ieWrapper.setInputBlob(netName, inputImgs.at(curImg%batchSize));
-                    tInferenceBegins = cv::getTickCount();
+                    startTime = cv::getTickCount();
                     ieWrapper.startAsync();
                     }
                 });
@@ -129,8 +132,10 @@ int main(int argc, char *argv[]) {
         cv::imshow("main", gridMat.getMat());
 
         ieWrapper.setInputBlob(netName, inputImgs[curImg%batchSize]);
-        tInferenceBegins = cv::getTickCount();
+        startTime = cv::getTickCount();
         ieWrapper.startAsync();
+
+        lastShowTime = cv::getTickCount();
 
         cv::Mat tmpMat;
         while(true){
@@ -144,7 +149,15 @@ int main(int argc, char *argv[]) {
             }
             
             gridMat.update(tmpMat);
-            gridMat.textUpdate(overallTime);
+            //if 0.5 seconds have passed
+            if( (cv::getTickCount() - lastShowTime) / cv::getTickFrequency() >= 0.125){
+                lastShowTime = cv::getTickCount();
+                
+                double currSPF = lastInferTime / cv::getTickFrequency();
+                double overallSPF = (sumTime / cv::getTickFrequency()) / framesNum;
+                
+                gridMat.textUpdate(overallSPF, currSPF);// overallTime is not protected
+            }
             cv::imshow("main", gridMat.getMat());
             
             char key = static_cast<char>(cv::waitKey(10));
