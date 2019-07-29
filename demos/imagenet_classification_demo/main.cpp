@@ -108,6 +108,7 @@ int main(int argc, char *argv[]) {
         ieWrapper.request.SetCompletionCallback(
                 [&]{
                     if(!quitFlag) {                        
+                        int curInputImg;
                         {
                             std::unique_lock<std::mutex> lock(mutex);
                             curInputImg = curImg%batchSize;
@@ -127,8 +128,8 @@ int main(int argc, char *argv[]) {
                 });
 
         GridMat gridMat = GridMat(10, 15);
-        cv::namedWindow("main");
-        cv::imshow("main", gridMat.getMat());
+        //cv::namedWindow("main");
+        //cv::imshow("main", gridMat.getMat());
 
         ieWrapper.setInputBlob(inputBlobName, inputImgs[curImg%batchSize]);
         startTime = cv::getTickCount();
