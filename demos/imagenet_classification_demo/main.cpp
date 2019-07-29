@@ -7,9 +7,6 @@
 * @file classification_sample_async/main.cpp
 * @example classification_sample_async/main.cpp
 */
-#ifndef __IMAGENET_CLASSIFICATION_DEMO__
-#define __IMAGENET_CLASSIFICATION_DEMO__
-
 #include <fstream>
 #include <vector>
 #include <queue>
@@ -111,8 +108,11 @@ int main(int argc, char *argv[]) {
         ieWrapper.request.SetCompletionCallback(
                 [&]{
                     if(!quitFlag) {
+                    int curInputImg;
+                    
                     mutex.lock();
-                    showMats.push(inputImgs[curImg%batchSize]);
+                    curInputImg = curImg%batchSize;
+                    showMats.push(inputImgs[curInputImg]);
                     ++curImg;
 
                     sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
                     
                     condVar.notify_one();  
                     
-                    ieWrapper.setInputBlob(netName, inputImgs.at(curImg%batchSize));
+                    ieWrapper.setInputBlob(netName, inputImgs.at(curInputImg));
                     startTime = cv::getTickCount();
                     ieWrapper.startAsync();
                     }
@@ -186,5 +186,3 @@ int main(int argc, char *argv[]) {
                                 "please use the dedicated benchmark_app tool" << slog::endl;
     return 0;
 }
-
-#endif //__IMAGENET_CLASSIFICATION_DEMO__
