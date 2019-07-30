@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
             }
             cv::imshow("main", gridMat.getMat());
             
-            char key = static_cast<char>(cv::waitKey(10));
+            char key = static_cast<char>(cv::waitKey(1));
             // Press 'Esc' to quit
             if (key == 27){
                 quitFlag = true;
