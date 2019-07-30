@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
         double lastShowTime = cv::getTickCount();
 
         size_t curImg = 0;
-        size_t batchSize = inputImgs.size();
+        //size_t batchSize = inputImgs.size();
         std::queue<cv::Mat> showMats;
         
         std::condition_variable condVar;
@@ -108,12 +108,16 @@ int main(int argc, char *argv[]) {
         ieWrapper.request.SetCompletionCallback(
                 [&]{
                     if(!quitFlag) {                        
-                        int curInputImg;
+                        //int curInputImg;
                         {
                             std::lock_guard<std::mutex> lock(mutex);
-                            curInputImg = curImg%batchSize;
-                            showMats.push(inputImgs[curInputImg]);
-                            ++curImg;
+                            //curInputImg = curImg%batchSize;
+                            showMats.push(inputImgs[curImg]);//!!
+                            
+                            if(curImg == inputImgs.size() - 1)
+                                curImg = 0;
+                            else
+                                curImg++;
 
                             sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
                             ++framesNum;
@@ -121,7 +125,7 @@ int main(int argc, char *argv[]) {
 
                         condVar.notify_one();  
                     
-                        ieWrapper.setInputBlob(inputBlobName, inputImgs.at(curInputImg));
+                        ieWrapper.setInputBlob(inputBlobName, inputImgs.at(curImg));//!!
                         startTime = cv::getTickCount();
                         ieWrapper.startAsync();
                     }
@@ -131,7 +135,7 @@ int main(int argc, char *argv[]) {
         cv::namedWindow("main");
         cv::imshow("main", gridMat.getMat());
 
-        ieWrapper.setInputBlob(inputBlobName, inputImgs[curImg%batchSize]);
+        ieWrapper.setInputBlob(inputBlobName, inputImgs[curImg]);//!!
         startTime = cv::getTickCount();
         ieWrapper.startAsync();
 
@@ -154,7 +158,7 @@ int main(int argc, char *argv[]) {
                 double currSPF = lastInferTime / cv::getTickFrequency();
                 double overallSPF = (sumTime / cv::getTickFrequency()) / framesNum;
                 
-                gridMat.textUpdate(overallSPF, currSPF, showMats.size());// overallTime is not protected
+                gridMat.textUpdate(overallSPF, currSPF);// overallTime is not protected
             }
             cv::imshow("main", gridMat.getMat());
             

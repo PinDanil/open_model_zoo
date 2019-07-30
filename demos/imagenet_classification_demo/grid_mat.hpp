@@ -63,7 +63,7 @@ public:
 
     void update(std::queue<cv::Mat>& frames) {
         while(!frames.empty()) {    
-            cv::Mat cell = outimg(cv::Rect(points[currSourceID % points.size()], cellSize));
+            cv::Mat cell = outimg(cv::Rect(points[currSourceID], cellSize));
             cv::Mat frame = frames.front();
             frames.pop();
 
@@ -74,11 +74,15 @@ public:
             } else {
                 cv::resize(frame, cell, cellSize);
             }
-            currSourceID++;
+            
+            if(currSourceID = points.size())
+                currSourceID = 0;
+            else
+                currSourceID++;
         }
     }
 
-    void textUpdate(double overSPF, double curSPF, int s){
+    void textUpdate(double overSPF, double curSPF){
         //set rectangle 
         size_t colunmNum = outimg.cols;
         cv::Point p1 = cv::Point(0,0);
@@ -94,8 +98,8 @@ public:
         int thickness = 2;
 
         cv::putText(outimg,
-                    cv::format("Overall FPS: %0.01f Current FPS: %0.01f Overall mSPF: %0.0f Current mSPF: %0.0f %d",
-                    1./overSPF, 1./curSPF, 1000 * overSPF, 1000 * curSPF, s),
+                    cv::format("Overall FPS: %0.01f Current FPS: %0.01f Overall mSPF: %0.0f Current mSPF: %0.0f",
+                    1./overSPF, 1./curSPF, 1000 * overSPF, 1000 * curSPF),
                     cv::Point(10, static_cast<int>(30 * fontScale / 1.6)),
                     cv::FONT_HERSHEY_PLAIN, fontScale, fontColor, thickness);
     }
