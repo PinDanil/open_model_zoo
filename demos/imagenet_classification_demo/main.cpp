@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
                     if(!quitFlag) {                        
                         int curInputImg;
                         {
-                            std::unique_lock<std::mutex> lock(mutex);
+                            std::lock_guard<std::mutex> lock(mutex);
                             curInputImg = curImg%batchSize;
                             showMats.push(inputImgs[curInputImg]);
                             ++curImg;
@@ -145,11 +145,8 @@ int main(int argc, char *argv[]) {
                     condVar.wait(lock);
                 }
                 gridMat.update(showMats);
-                //tmpMat = showMats.front();
-                //showMats.pop();
             }
             
-            //gridMat.update(tmpMat);
             //if 0.125 seconds have passed
             if( (cv::getTickCount() - lastShowTime) / cv::getTickFrequency() >= 0.125){
                 lastShowTime = cv::getTickCount();
