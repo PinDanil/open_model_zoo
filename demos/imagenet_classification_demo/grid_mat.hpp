@@ -17,10 +17,9 @@ class GridMat {
 public:
     cv::Mat outimg;
 
-    explicit GridMat(size_t cNum, size_t rNum, size_t rh = 60, const cv::Size maxDisp = cv::Size{1080, 1920}):
-    rectangleHeight(rh) {
-        currSourceID = 0;
-        positionNum = cNum * rNum;
+    explicit GridMat(size_t cNum, size_t rNum, size_t rh = 60,
+    const cv::Size maxDisp = cv::Size{1080, 1920}):
+    currSourceID{0}, rectangleHeight{rh}, positionNum{cNum * rNum} {
         cellSize.width = maxDisp.width * 1. / cNum;
         cellSize.height = (maxDisp.height - rectangleHeight) * 1. / rNum;
         
