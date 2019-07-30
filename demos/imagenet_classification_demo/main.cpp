@@ -128,8 +128,8 @@ int main(int argc, char *argv[]) {
                 });
 
         GridMat gridMat = GridMat(10, 15);
-        //cv::namedWindow("main");
-        //cv::imshow("main", gridMat.getMat());
+        cv::namedWindow("main");
+        cv::imshow("main", gridMat.getMat());
 
         ieWrapper.setInputBlob(inputBlobName, inputImgs[curImg%batchSize]);
         startTime = cv::getTickCount();
@@ -142,21 +142,22 @@ int main(int argc, char *argv[]) {
             {
                 std::unique_lock<std::mutex> lock(mutex);
                 while(showMats.empty()){   
-                condVar.wait(lock);
+                    condVar.wait(lock);
                 }
-                tmpMat = showMats.front();
-                showMats.pop();
+                gridMat.update(showMats);
+                //tmpMat = showMats.front();
+                //showMats.pop();
             }
             
-            gridMat.update(tmpMat);
-            //if 0.5 seconds have passed
+            //gridMat.update(tmpMat);
+            //if 0.125 seconds have passed
             if( (cv::getTickCount() - lastShowTime) / cv::getTickFrequency() >= 0.125){
                 lastShowTime = cv::getTickCount();
                 
                 double currSPF = lastInferTime / cv::getTickFrequency();
                 double overallSPF = (sumTime / cv::getTickFrequency()) / framesNum;
                 
-                gridMat.textUpdate(overallSPF, currSPF);// overallTime is not protected
+                gridMat.textUpdate(overallSPF, currSPF, showMats.size());// overallTime is not protected
             }
             cv::imshow("main", gridMat.getMat());
             
@@ -169,8 +170,6 @@ int main(int argc, char *argv[]) {
         }
         
         cv::destroyWindow("main");
-
-        return 0;
     }
     catch (const std::exception& error) {
         slog::err << error.what() << slog::endl;

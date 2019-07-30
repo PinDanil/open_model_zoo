@@ -20,7 +20,7 @@ public:
     explicit GridMat(size_t cNum, size_t rNum, size_t rh = 60, const cv::Size maxDisp = cv::Size{1080, 1920}):
     rectangleHeight(rh) {
         currSourceID = 0;
-
+        positionNum = cNum * rNum;
         cellSize.width = maxDisp.width * 1. / cNum;
         cellSize.height = (maxDisp.height - rectangleHeight) * 1. / rNum;
         
@@ -62,20 +62,24 @@ public:
         }
     }
 
-    void update(const cv::Mat& frame) {
-        cv::Mat cell = outimg(cv::Rect(points[currSourceID % points.size()], cellSize));
+    void update(std::queue<cv::Mat>& frames) {
+        while(!frames.empty()) {    
+            cv::Mat cell = outimg(cv::Rect(points[currSourceID % points.size()], cellSize));
+            cv::Mat frame = frames.front();
+            frames.pop();
 
-        if ((cellSize.width == frame.cols) && (cellSize.height == frame.rows)) {
-            frame.copyTo(cell);
-        } else if ((cellSize.width > frame.cols) && (cellSize.height > frame.rows)) {
-            frame.copyTo(cell(cv::Rect(0, 0, frame.cols, frame.rows)));
-        } else {
-            cv::resize(frame, cell, cellSize);
+            if ((cellSize.width == frame.cols) && (cellSize.height == frame.rows)) {
+                frame.copyTo(cell);
+            } else if ((cellSize.width > frame.cols) && (cellSize.height > frame.rows)) {
+                frame.copyTo(cell(cv::Rect(0, 0, frame.cols, frame.rows)));
+            } else {
+                cv::resize(frame, cell, cellSize);
+            }
+            currSourceID++;
         }
-        currSourceID++;
     }
 
-    void textUpdate(double overSPF, double curSPF){
+    void textUpdate(double overSPF, double curSPF, int s){
         //set rectangle 
         size_t colunmNum = outimg.cols;
         cv::Point p1 = cv::Point(0,0);
@@ -91,8 +95,8 @@ public:
         int thickness = 2;
 
         cv::putText(outimg,
-                    cv::format("Overall FPS: %0.0f Current FPS: %0.0f Overall mSPF: %0.0f Current mSPF: %0.0f",
-                    1./overSPF, 1./curSPF, 1000 * overSPF, 1000 * curSPF),
+                    cv::format("Overall FPS: %0.01f Current FPS: %0.01f Overall mSPF: %0.0f Current mSPF: %0.0f %d",
+                    1./overSPF, 1./curSPF, 1000 * overSPF, 1000 * curSPF, s),
                     cv::Point(10, static_cast<int>(30 * fontScale / 1.6)),
                     cv::FONT_HERSHEY_PLAIN, fontScale, fontColor, thickness);
     }
@@ -118,4 +122,5 @@ private:
     std::set<size_t> unupdatedSourceIDs;
     std::vector<cv::Point> points;
     size_t rectangleHeight;
+    size_t positionNum;
 };
