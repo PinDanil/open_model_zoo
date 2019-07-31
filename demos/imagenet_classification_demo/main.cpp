@@ -73,6 +73,8 @@ int main(int argc, char *argv[]) {
 
         Core ie;
         gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d);
+        ieWrapper.setBatchSize(5);
+        size_t batchSize = ieWrapper.getBatchSize();
         // IRequest, model and devce is set.
 
         std::vector<std::string> imageNames;
@@ -112,18 +114,18 @@ int main(int argc, char *argv[]) {
                         {
                             std::lock_guard<std::mutex> lock(mutex);
                             //curInputImg = curImg%batchSize;
-                            for(size_t i = curImg; i <= ieWrapper.getBatchSize(); ++i)
-                                showMats.push(inputImgs[curImg%inputImgs.size()]);//!!
+                            for(size_t i = curImg; i <= batchSize; ++i)
+                                showMats.push(inputImgs[(curImg+i)%inputImgs.size()]);//!!
                             
-                            curImg=(curImg+ieWrapper.getBatchSize())%inputImgs.size();
+                            curImg=(curImg+batchSize)%inputImgs.size();
 
                             sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
-                            ++framesNum;
+                            framesNum+=batchSize;
                         }
 
                         condVar.notify_one();  
                     
-                        ieWrapper.setInputBlob(inputBlobName, inputImgs.at(curImg));//!!
+                        ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
                         startTime = cv::getTickCount();
                         ieWrapper.startAsync();
                     }
@@ -133,7 +135,7 @@ int main(int argc, char *argv[]) {
         cv::namedWindow("main");
         cv::imshow("main", gridMat.getMat());
 
-        ieWrapper.setInputBlob(inputBlobName, inputImgs[curImg]);//!!
+        ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
         startTime = cv::getTickCount();
         ieWrapper.startAsync();
 
