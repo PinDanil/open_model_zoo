@@ -112,12 +112,10 @@ int main(int argc, char *argv[]) {
                         {
                             std::lock_guard<std::mutex> lock(mutex);
                             //curInputImg = curImg%batchSize;
-                            showMats.push(inputImgs[curImg]);//!!
+                            for(size_t i = curImg; i <= ieWrapper.getBatchSize(); ++i)
+                                showMats.push(inputImgs[curImg%inputImgs.size()]);//!!
                             
-                            if(curImg == inputImgs.size() - 1)
-                                curImg = 0;
-                            else
-                                curImg++;
+                            curImg=(curImg+ieWrapper.getBatchSize())%inputImgs.size();
 
                             sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
                             ++framesNum;
