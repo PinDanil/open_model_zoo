@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
 
         Core ie;
         gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d);
-        ieWrapper.setBatchSize(5);
+        ieWrapper.setBatchSize(3);
         size_t batchSize = ieWrapper.getBatchSize();
         // IRequest, model and devce is set.
 
@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
                         {
                             std::lock_guard<std::mutex> lock(mutex);
                             //curInputImg = curImg%batchSize;
-                            for(size_t i = curImg; i <= batchSize; ++i)
+                            for(size_t i = 0; i < batchSize; ++i)
                                 showMats.push(inputImgs[(curImg+i)%inputImgs.size()]);//!!
                             
                             curImg=(curImg+batchSize)%inputImgs.size();
@@ -152,10 +152,10 @@ int main(int argc, char *argv[]) {
             }
             
             //if 0.125 seconds have passed
-            if( (cv::getTickCount() - lastShowTime) / cv::getTickFrequency() >= 0.125){
+            if( (cv::getTickCount() - lastShowTime) / cv::getTickFrequency() >= 0.125){    
                 lastShowTime = cv::getTickCount();
-                
-                double currSPF = lastInferTime / cv::getTickFrequency();
+
+                double currSPF = (lastInferTime / cv::getTickFrequency()) / batchSize;
                 double overallSPF = (sumTime / cv::getTickFrequency()) / framesNum;
                 
                 gridMat.textUpdate(overallSPF, currSPF);// overallTime is not protected

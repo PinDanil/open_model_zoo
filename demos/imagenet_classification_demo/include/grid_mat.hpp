@@ -98,7 +98,7 @@ public:
         int thickness = 2;
 
         cv::putText(outimg,
-                    cv::format("Overall FPS: %0.01f Current FPS: %0.01f Overall mSPF: %0.0f Current mSPF: %0.0f",
+                    cv::format("Overall FPS: %0.01f Current FPS: %0.01f Overall mSPF: %0.01f Current mSPF: %0.01f",
                     1./overSPF, 1./curSPF, 1000 * overSPF, 1000 * curSPF),
                     cv::Point(10, static_cast<int>(30 * fontScale / 1.6)),
                     cv::FONT_HERSHEY_PLAIN, fontScale, fontColor, thickness);
