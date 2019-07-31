@@ -71,19 +71,21 @@ void IEWrapper::setExecPart() {
 }
 
 void IEWrapper::setInputBlob(const std::string& blobName,
-                             const cv::Mat& image) {
+                             const std::vector<cv::Mat>& images,
+                             int firstIndex) {
     auto blobDims = inputBlobsDimsInfo[blobName];
-
     if (blobDims.size() != 4) {
         throw std::runtime_error("Input data does not match size of the blob");
     }
-
-    auto scaledSize = cv::Size(static_cast<int>(blobDims[3]), static_cast<int>(blobDims[2]));
-    cv::Mat resizedImage;
-    cv::resize(image, resizedImage, scaledSize, 0, 0, cv::INTER_CUBIC);
-
+    //auto scaledSize = cv::Size(static_cast<int>(blobDims[3]), static_cast<int>(blobDims[2]));
+    //cv::Mat resizedImage;
+    //cv::resize(image, resizedImage, scaledSize, 0, 0, cv::INTER_CUBIC);
+    
     auto inputBlob = request.GetBlob(blobName);
-    matU8ToBlob<PrecisionTrait<Precision::U8>::value_type>(resizedImage, inputBlob);
+    size_t batchSize = network.getBatchSize();
+    size_t imgDataSize = images.size();
+    for(size_t i = 0; i < batchSize; ++i)
+        matU8ToBlob<PrecisionTrait<Precision::U8>::value_type>(images.at((firstIndex+i)%imgDataSize), inputBlob, i);
 }
 
 void IEWrapper::setInputBlob(const std::string& blobName,
@@ -133,6 +135,14 @@ void IEWrapper::getOutputBlob(std::vector<float>& output) {
     for (int i = 0; i < dataSize; ++i) {
         output.push_back(buffer[i]);
     }
+}
+
+void IEWrapper::setBatchSize(size_t size) {
+    network.setBatchSize(size);
+}
+
+size_t IEWrapper::getBatchSize() {
+    return network.getBatchSize();
 }
 
 const std::map<std::string, std::vector<unsigned long>>& IEWrapper::getIputBlobDimsInfo() const {

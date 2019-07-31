@@ -27,7 +27,7 @@ public:
               const std::string& modelPath,
               const std::string& deviceName);
     // For setting input blobs containing images
-    void setInputBlob(const std::string& blobName, const cv::Mat& image);
+    void setInputBlob(const std::string& blobName,const std::vector<cv::Mat>& images,int firstIndex);
     // For setting input blobs containing vectors of data
     void setInputBlob(const std::string& blobName, const std::vector<float>& data);
 
@@ -35,6 +35,10 @@ public:
     void getOutputBlob(const std::string& blobName, std::vector<float>& output);
     // Get output blob content as a vector (if there is only one output blob)
     void getOutputBlob(std::vector<float>& output);
+    
+    void setBatchSize(size_t size);
+
+    size_t getBatchSize();
 
     void printPerlayerPerformance() const;
 
