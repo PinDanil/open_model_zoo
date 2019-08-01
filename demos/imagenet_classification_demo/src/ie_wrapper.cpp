@@ -137,6 +137,26 @@ void IEWrapper::getOutputBlob(std::vector<float>& output) {
     }
 }
 
+void IEWrapper::resizeNetwork(size_t batchSize){
+    if (batchSize != 0) {
+        const InputsDataMap inputInfo(network.getInputsInfo());
+        ICNNNetwork::InputShapes shapes = network.getInputShapes();
+        bool reshape = false;
+        for (const InputsDataMap::value_type& item : inputInfo) {
+            //auto layout = item.second->getTensorDesc().getLayout();
+            int batchIndex = 1;
+            if ((batchIndex != -1) && (shapes[item.first][batchIndex] != batchSize)) {
+                shapes[item.first][batchIndex] = batchSize;
+                reshape = true;
+            }
+        }
+        if (reshape) {
+            slog::info << "Resizing network to batch = " << batchSize << slog::endl;
+            network.reshape(shapes);
+        }
+    }
+}
+
 void IEWrapper::setBatchSize(size_t size) {
     network.setBatchSize(size);
 }

@@ -47,6 +47,8 @@ public:
 
     void reshape(const std::map<std::string, std::vector<unsigned long>>& newBlobsDimsInfo);
 
+    void resizeNetwork(size_t batchSize);
+
     void infer();
 
     void startAsync();
