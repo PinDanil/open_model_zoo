@@ -73,8 +73,8 @@ int main(int argc, char *argv[]) {
 
         Core ie;
         gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d);
-        ieWrapper.setBatchSize(1);
-        size_t batchSize = ieWrapper.getBatchSize();
+        //ieWrapper.setBatchSize(1);
+        //size_t batchSize = ieWrapper.getBatchSize();
         //ieWrapper.resizeNetwork(batchSize);
         // IRequest, model and devce is set.
 
@@ -112,18 +112,18 @@ int main(int argc, char *argv[]) {
                     if(!quitFlag) {                        
                         {
                             std::lock_guard<std::mutex> lock(mutex);
-                            for(size_t i = 0; i < batchSize; ++i)
-                                showMats.push(inputImgs[(curImg+i)%inputImgs.size()]);//!!
+                            //for(size_t i = 0; i < batchSize; ++i)
+                                showMats.push(inputImgs[(curImg/*+i*/)%inputImgs.size()]);//!!
                             
-                            curImg=(curImg+batchSize)%inputImgs.size();
+                            curImg=(curImg+1)%inputImgs.size();
 
                             sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
-                            framesNum+=batchSize;
+                            framesNum++;
                         }
                         condVar.notify_one();  
                     
                         ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
-                        ieWrapper.resizeNetwork(batchSize);
+                        //ieWrapper.resizeNetwork(batchSize);
 
                         startTime = cv::getTickCount();
                         ieWrapper.startAsync();
@@ -142,26 +142,24 @@ int main(int argc, char *argv[]) {
 
         cv::Mat tmpMat;
         while(true) {      
-            {
-                std::unique_lock<std::mutex> lock(mutex);
-                while(showMats.empty()){   
-                    condVar.wait(lock);
+            if( (cv::getTickCount() - lastShowTime) / cv::getTickFrequency() >= 0.05){
+                double currSPF; 
+                double overallSPF; 
+                {
+                    std::unique_lock<std::mutex> lock(mutex);
+                    while(showMats.empty()){   
+                        condVar.wait(lock);
+                    }
+                    gridMat.update(showMats);
+                    currSPF = (lastInferTime / cv::getTickFrequency());
+                    overallSPF = (sumTime / cv::getTickFrequency()) / framesNum;
                 }
-                gridMat.update(showMats);
-            }
-            
-            //if 0.125 seconds have passed
-            if( (cv::getTickCount() - lastShowTime) / cv::getTickFrequency() >= 0.125){    
-                lastShowTime = cv::getTickCount();
-
-                double currSPF = (lastInferTime / cv::getTickFrequency()) / batchSize;
-                double overallSPF = (sumTime / cv::getTickFrequency()) / framesNum;
-
                 gridMat.textUpdate(overallSPF, currSPF);// overallTime is not protected
                 //std::cout<< "Ov FPS: "<< 1./overallSPF << " Cur FPS: "<< 1./currSPF<<std::endl;
-            }
                 cv::imshow("main", gridMat.getMat());
-
+                
+                lastShowTime = cv::getTickCount();
+                
                 char key = static_cast<char>(cv::waitKey(1));
                 //Press 'Esc' to quit
                 if (key == 27){
@@ -169,6 +167,7 @@ int main(int argc, char *argv[]) {
                     break;
                 }
             }
+        }
         
         cv::destroyWindow("main");
     }
