@@ -82,11 +82,12 @@ void IEWrapper::setInputBlob(const std::string& blobName,
     size_t batchSize = network.getBatchSize();
     size_t imgDataSize = images.size();
     
-    for(size_t i = 0; i < batchSize; ++i) {
-        auto scaledSize = cv::Size(static_cast<int>(blobDims[3]), static_cast<int>(blobDims[2]));
-        cv::Mat resizedImage;
-        cv::resize(images.at((firstIndex+i)%imgDataSize), resizedImage, scaledSize, 0, 0, cv::INTER_CUBIC);
-        matU8ToBlob<uint8_t>(resizedImage, inputBlob, i);
+    for(size_t i = 0; i < batchSize; i++) {
+        std::cout<<1<<std::endl;
+        cv::Mat inputImg = images.at((firstIndex+i)%imgDataSize);
+        std::cout<<2<<std::endl;
+        matU8ToBlob<PrecisionTrait<Precision::U8>::value_type>(inputImg, inputBlob, i);
+        std::cout<<3<<std::endl;
         //<PrecisionTrait<Precision::U8>::value_type>
     }
 }
@@ -149,7 +150,7 @@ void IEWrapper::resizeNetwork(size_t batchSize){ //OK ... ?
     input_shape[2] = input_shapes[input_name][2];
     input_shape[3] = input_shapes[input_name][3];
     input_shapes[input_name] = input_shape;
-    std::cout << "Resizing network to the image size = [" << network.rows << "x" << network.cols << "] "
+    std::cout << "Resizing network to the image size = [" << input_shapes[input_name][2] << "x" << input_shapes[input_name][3] << "] "
               << "with batch = " << batchSize << std::endl;
     network.reshape(input_shapes);
 }

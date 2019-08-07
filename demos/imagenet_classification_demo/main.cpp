@@ -113,10 +113,10 @@ int main(int argc, char *argv[]) {
                     if(!quitFlag) {                        
                         {
                             std::lock_guard<std::mutex> lock(mutex);
-                            //for(size_t i = 0; i < batchSize; ++i)
-                                showMats.push(inputImgs[(curImg/*+i*/)%inputImgs.size()]);//!!
+                            for(size_t i = 0; i < batchSize; ++i)
+                                showMats.push(inputImgs[(curImg+i)%inputImgs.size()]);//!!
                             
-                            curImg=(curImg+1)%inputImgs.size();
+                            curImg=(curImg+batchSize)%inputImgs.size();
 
                             sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
                             framesNum++;
@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
                         condVar.wait(lock);
                     }
                     gridMat.update(showMats);
-                    currSPF = (lastInferTime / cv::getTickFrequency());
+                    currSPF = (lastInferTime / cv::getTickFrequency()) / batchSize;
                     overallSPF = (sumTime / cv::getTickFrequency()) / framesNum;
                 }
                 gridMat.textUpdate(overallSPF, currSPF);// overallTime is not protected
