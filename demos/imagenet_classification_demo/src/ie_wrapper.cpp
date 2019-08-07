@@ -77,15 +77,18 @@ void IEWrapper::setInputBlob(const std::string& blobName,
     if (blobDims.size() != 4) {
         throw std::runtime_error("Input data does not match size of the blob");
     }
-    //auto scaledSize = cv::Size(static_cast<int>(blobDims[3]), static_cast<int>(blobDims[2]));
-    //cv::Mat resizedImage;
-    //cv::resize(image, resizedImage, scaledSize, 0, 0, cv::INTER_CUBIC);
     
     auto inputBlob = request.GetBlob(blobName);
     size_t batchSize = network.getBatchSize();
     size_t imgDataSize = images.size();
-    for(size_t i = 0; i < batchSize; ++i)
-        matU8ToBlob<PrecisionTrait<Precision::U8>::value_type>(images.at((firstIndex+i)%imgDataSize), inputBlob, i);
+    
+    for(size_t i = 0; i < batchSize; ++i) {
+        auto scaledSize = cv::Size(static_cast<int>(blobDims[3]), static_cast<int>(blobDims[2]));
+        cv::Mat resizedImage;
+        cv::resize(images.at((firstIndex+i)%imgDataSize), resizedImage, scaledSize, 0, 0, cv::INTER_CUBIC);
+        matU8ToBlob<uint8_t>(resizedImage, inputBlob, i);
+        //<PrecisionTrait<Precision::U8>::value_type>
+    }
 }
 
 void IEWrapper::setInputBlob(const std::string& blobName,
@@ -137,24 +140,18 @@ void IEWrapper::getOutputBlob(std::vector<float>& output) {
     }
 }
 
-void IEWrapper::resizeNetwork(size_t batchSize){
-    if (batchSize != 0) {
-        const InputsDataMap inputInfo(network.getInputsInfo());
-        ICNNNetwork::InputShapes shapes = network.getInputShapes();
-        bool reshape = false;
-        for (const InputsDataMap::value_type& item : inputInfo) {
-            //auto layout = item.second->getTensorDesc().getLayout();
-            int batchIndex = 1;
-            if ((batchIndex != -1) && (shapes[item.first][batchIndex] != batchSize)) {
-                shapes[item.first][batchIndex] = batchSize;
-                reshape = true;
-            }
-        }
-        if (reshape) {
-            slog::info << "Resizing network to batch = " << batchSize << slog::endl;
-            network.reshape(shapes);
-        }
-    }
+void IEWrapper::resizeNetwork(size_t batchSize){ //OK ... ?
+    auto input_shapes = network.getInputShapes();
+    std::string input_name;
+    SizeVector input_shape;
+    std::tie(input_name, input_shape) = *input_shapes.begin();
+    input_shape[0] = batchSize;
+    input_shape[2] = input_shapes[input_name][2];
+    input_shape[3] = input_shapes[input_name][3];
+    input_shapes[input_name] = input_shape;
+    std::cout << "Resizing network to the image size = [" << network.rows << "x" << network.cols << "] "
+              << "with batch = " << batchSize << std::endl;
+    network.reshape(input_shapes);
 }
 
 void IEWrapper::setBatchSize(size_t size) {

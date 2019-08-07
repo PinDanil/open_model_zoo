@@ -73,9 +73,6 @@ int main(int argc, char *argv[]) {
 
         Core ie;
         gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d);
-        //ieWrapper.setBatchSize(1);
-        //size_t batchSize = ieWrapper.getBatchSize();
-        //ieWrapper.resizeNetwork(batchSize);
         // IRequest, model and devce is set.
 
         std::vector<std::string> imageNames;
@@ -92,7 +89,11 @@ int main(int argc, char *argv[]) {
         for (const auto & i : imageNames) {
             inputImgs.push_back(cv::imread(i));
         }
-        
+
+        ieWrapper.setBatchSize(8);
+        size_t batchSize = ieWrapper.getBatchSize();
+        ieWrapper.resizeNetwork(batchSize);
+
         bool quitFlag = false;
 
         //Out info measure
@@ -123,7 +124,6 @@ int main(int argc, char *argv[]) {
                         condVar.notify_one();  
                     
                         ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
-                        //ieWrapper.resizeNetwork(batchSize);
 
                         startTime = cv::getTickCount();
                         ieWrapper.startAsync();
