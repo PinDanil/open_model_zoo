@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
         if (!ParseAndCheckCommandLine(argc, argv)) {
             return 0;
         }
-        size_t batchSize = 32;
+        size_t batchSize = 1;
         Core ie;
         gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d, batchSize);
         // IRequest, model and devce is set.
@@ -115,13 +115,13 @@ int main(int argc, char *argv[]) {
                         {
                             std::lock_guard<std::mutex> lock(mutex);
                             for(size_t i = 0; i < batchSize; ++i)
-                                showMats.push(inputImgs[(curImg+i)%inputImgs.size()]);//
-                            curImg=(curImg+batchSize)%inputImgs.size();
-
+                                showMats.push(inputImgs[(curImg+i)%inputImgs.size()]);
                             sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
                             framesNum+=batchSize;
                         }
-                        condVar.notify_one();  
+                        condVar.notify_one();
+
+                        curImg=(curImg+batchSize)%inputImgs.size();
                         ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
 
                         startTime = cv::getTickCount();
@@ -150,11 +150,12 @@ int main(int argc, char *argv[]) {
                     while(showMats.empty()){   
                         condVar.wait(lock);
                     }
-                    gridMat.update(showMats);
+                    gridMat.listUpdate(showMats);
 
                     currSPF = (lastInferTime / cv::getTickFrequency()) / batchSize;
                     overallSPF = (sumTime / cv::getTickFrequency()) / framesNum;
                 }
+                gridMat.update();
                 gridMat.textUpdate(overallSPF, currSPF);// overallTime is not protected
                 //std::cout<< "Ov FPS: "<< 1./overallSPF << " Cur FPS: "<< 1./currSPF<<std::endl;
                 cv::imshow("main", gridMat.getMat());

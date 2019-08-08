@@ -73,6 +73,8 @@ void IEWrapper::setExecPart() {
     request = executableNetwork.CreateInferRequest();
 }
 
+
+
 void IEWrapper::setInputBlob(const std::string& blobName,
                              const std::vector<cv::Mat>& images,
                              int firstIndex) {

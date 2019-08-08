@@ -31,6 +31,8 @@ public:
     // For setting input blobs containing vectors of data
     void setInputBlob(const std::string& blobName, const std::vector<float>& data);
 
+    void fillBlobs();
+
     // Get output blob content as a vector given its name (if there are more than one output blob)
     void getOutputBlob(const std::string& blobName, std::vector<float>& output);
     // Get output blob content as a vector (if there is only one output blob)

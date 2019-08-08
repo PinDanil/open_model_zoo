@@ -41,31 +41,19 @@ public:
     cv::Size getCellSize() {
         return cellSize;
     }
-/*
-    void fill(std::vector<cv::Mat>& frames) {
-        if (frames.size() > points.size()) {
-            throw std::logic_error("Cannot display " + std::to_string(frames.size()) + " channels in a grid with " + std::to_string(points.size()) + " cells");
-        }
-        currSourceID = 0;
-        for (size_t i = 0; i < frames.size(); i++) {
-            cv::Mat cell = outimg(cv::Rect(points[i].x, points[i].y, cellSize.width, cellSize.height));
 
-            if ((cellSize.width == frames[i].cols) && (cellSize.height == frames[i].rows)) {
-                frames[i].copyTo(cell);
-            } else if ((cellSize.width > frames[i].cols) && (cellSize.height > frames[i].rows)) {
-                frames[i].copyTo(cell(cv::Rect(0, 0, frames[i].cols, frames[i].rows)));
-            } else {
-                cv::resize(frames[i], cell, cellSize);
-            }
-            currSourceID++;
+    void listUpdate(std::queue<cv::Mat>& frames) {
+        while(!frames.empty()) {
+            updateList.push_back(frames.front());
+            frames.pop();
         }
     }
-*/
-    void update(std::queue<cv::Mat>& frames) {
-        while(!frames.empty()) {    
+
+    void update() {
+        while(!updateList.empty()) {    
             cv::Mat cell = outimg(cv::Rect(points[currSourceID], cellSize));
-            cv::Mat frame = frames.front();
-            frames.pop();
+            cv::Mat frame = updateList.front();
+            updateList.pop_front();
 
             if ((cellSize.width == frame.cols) && (cellSize.height == frame.rows)) {
                 frame.copyTo(cell);
@@ -119,6 +107,7 @@ public:
     }
 
 private:
+    std::list<cv::Mat> updateList;
     cv::Size cellSize;
     size_t currSourceID;
     std::set<size_t> unupdatedSourceIDs;
