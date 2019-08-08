@@ -25,7 +25,7 @@ class IEWrapper {
 public:
     IEWrapper(InferenceEngine::Core& ie,
               const std::string& modelPath,
-              const std::string& deviceName);
+              const std::string& deviceName, size_t batchSize);
     // For setting input blobs containing images
     void setInputBlob(const std::string& blobName,const std::vector<cv::Mat>& images,int firstIndex);
     // For setting input blobs containing vectors of data

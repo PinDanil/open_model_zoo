@@ -14,18 +14,20 @@ namespace gaze_estimation {
 
 IEWrapper::IEWrapper(InferenceEngine::Core& ie,
                      const std::string& modelPath,
-                     const std::string& deviceName):
+                     const std::string& deviceName, size_t batchSize):
            modelPath(modelPath), deviceName(deviceName), ie(ie) {
     netReader.ReadNetwork(modelPath);
     std::string binFileName = fileNameNoExt(modelPath) + ".bin";
     netReader.ReadWeights(binFileName);
     network = netReader.getNetwork();
+    
+    resizeNetwork(batchSize);
+
     setExecPart();
 }
 
 void IEWrapper::setExecPart() {
     // set map of input blob name -- blob dimension pairs
-    network.setBatchSize(8); // set it before you are going to store info about the net because this info is affected
     auto inputInfo = network.getInputsInfo();
     for (auto inputBlobsIt = inputInfo.begin(); inputBlobsIt != inputInfo.end(); ++inputBlobsIt) {
         auto layerName = inputBlobsIt->first;
@@ -139,7 +141,7 @@ void IEWrapper::getOutputBlob(std::vector<float>& output) {
     }
 }
 
-void IEWrapper::resizeNetwork(size_t batchSize){ //OK ... ?
+void IEWrapper::resizeNetwork(size_t batchSize) { //OK ... ?
     auto input_shapes = network.getInputShapes();
     std::string input_name;
     SizeVector input_shape;

@@ -69,9 +69,9 @@ public:
 
             if ((cellSize.width == frame.cols) && (cellSize.height == frame.rows)) {
                 frame.copyTo(cell);
-            } /*else if ((cellSize.width > frame.cols) && (cellSize.height > frame.rows)) {
+            } else if ((cellSize.width > frame.cols) && (cellSize.height > frame.rows)) {
                 frame.copyTo(cell(cv::Rect(0, 0, frame.cols, frame.rows)));
-            }*/ else {
+            } else {
                 cv::resize(frame, cell, cellSize);
             }
             

@@ -70,9 +70,9 @@ int main(int argc, char *argv[]) {
         if (!ParseAndCheckCommandLine(argc, argv)) {
             return 0;
         }
-
+        size_t batchSize = 32;
         Core ie;
-        gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d);
+        gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d, batchSize);
         // IRequest, model and devce is set.
 
         std::vector<std::string> imageNames;
@@ -88,17 +88,12 @@ int main(int argc, char *argv[]) {
         std::vector<cv::Mat> inputImgs = {};
         for (const auto & i : imageNames) {
             const cv::Mat& tmp = cv::imread(i);
-            if (nullptr == tmp.data) {
+            if (tmp.data == nullptr) {
                 std::cerr << "Could not read image " << i << '\n';
             } else {
                 inputImgs.push_back(tmp);
             }
         }
-
-        ieWrapper.setBatchSize(8);
-        size_t batchSize = ieWrapper.getBatchSize();
-        //ieWrapper.resizeNetwork(batchSize);
-
         bool quitFlag = false;
 
         //Out info measure
@@ -119,34 +114,28 @@ int main(int argc, char *argv[]) {
                     if(!quitFlag) {                        
                         {
                             std::lock_guard<std::mutex> lock(mutex);
-                            for(size_t i = 0; i < batchSize; ++i) {
-                                std::cout<<"Push to showMats"<<std::endl;
-                                showMats.push(inputImgs[(curImg+i)%inputImgs.size()]);//!!
-                            }
+                            for(size_t i = 0; i < batchSize; ++i)
+                                showMats.push(inputImgs[(curImg+i)%inputImgs.size()]);//
                             curImg=(curImg+batchSize)%inputImgs.size();
 
                             sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
                             framesNum+=batchSize;
                         }
                         condVar.notify_one();  
-                        std::cout<<"Set input blob in CompCallback"<<std::endl;
                         ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
 
                         startTime = cv::getTickCount();
-                        std::cout<<"Start async"<<std::endl;
                         ieWrapper.startAsync();
                     }
                 });
 
-        std::cout<<"Prepare GM"<<std::endl;
-
         GridMat gridMat = GridMat(10, 15);
-        //cv::namedWindow("main");
-        //cv::imshow("main", gridMat.getMat());
-        std::cout<<"Set first input blob"<<std::endl;
+        cv::namedWindow("main");
+        cv::imshow("main", gridMat.getMat());
+
         ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
         startTime = cv::getTickCount();
-        std::cout<<"Start async"<<std::endl;
+
         ieWrapper.startAsync();
 
         lastShowTime = cv::getTickCount();
@@ -161,17 +150,14 @@ int main(int argc, char *argv[]) {
                     while(showMats.empty()){   
                         condVar.wait(lock);
                     }
-                    std::cout<<"GM update"<<std::endl;
                     gridMat.update(showMats);
+
                     currSPF = (lastInferTime / cv::getTickFrequency()) / batchSize;
                     overallSPF = (sumTime / cv::getTickFrequency()) / framesNum;
                 }
-                std::cout<<"GM text update"<<std::endl;
                 gridMat.textUpdate(overallSPF, currSPF);// overallTime is not protected
                 //std::cout<< "Ov FPS: "<< 1./overallSPF << " Cur FPS: "<< 1./currSPF<<std::endl;
-                std::cout<<""<<std::endl;
                 cv::imshow("main", gridMat.getMat());
-                
                 lastShowTime = cv::getTickCount();
                 
                 char key = static_cast<char>(cv::waitKey(1));
