@@ -82,12 +82,9 @@ void IEWrapper::setInputBlob(const std::string& blobName,
     size_t batchSize = network.getBatchSize();
     size_t imgDataSize = images.size();
     
-    for(size_t i = 0; i < batchSize; i++) {
-        std::cout<<1<<std::endl;
+    for(size_t i = 0; i < batchSize; i++) {        
         cv::Mat inputImg = images.at((firstIndex+i)%imgDataSize);
-        std::cout<<2<<std::endl;
-        matU8ToBlob<PrecisionTrait<Precision::U8>::value_type>(inputImg, inputBlob, i);
-        std::cout<<3<<std::endl;
+        matU8ToBlob<uint8_t>(inputImg, inputBlob, i);
         //<PrecisionTrait<Precision::U8>::value_type>
     }
 }

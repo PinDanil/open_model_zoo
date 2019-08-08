@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
 
         ieWrapper.setBatchSize(8);
         size_t batchSize = ieWrapper.getBatchSize();
-        ieWrapper.resizeNetwork(batchSize);
+        //ieWrapper.resizeNetwork(batchSize);
 
         bool quitFlag = false;
 
@@ -108,34 +108,40 @@ int main(int argc, char *argv[]) {
         
         std::condition_variable condVar;
         std::mutex mutex;
+        std::mutex showMutex;
         ieWrapper.request.SetCompletionCallback(
                 [&]{
                     if(!quitFlag) {                        
                         {
                             std::lock_guard<std::mutex> lock(mutex);
-                            for(size_t i = 0; i < batchSize; ++i)
+                            for(size_t i = 0; i < batchSize; ++i) {
+                                std::cout<<"Push to showMats"<<std::endl;
                                 showMats.push(inputImgs[(curImg+i)%inputImgs.size()]);//!!
-                            
+                            }
                             curImg=(curImg+batchSize)%inputImgs.size();
 
                             sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
-                            framesNum++;
+                            framesNum+=batchSize;
                         }
                         condVar.notify_one();  
-                    
+                        std::cout<<"Set input blob in CompCallback"<<std::endl;
                         ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
 
                         startTime = cv::getTickCount();
+                        std::cout<<"Start async"<<std::endl;
                         ieWrapper.startAsync();
                     }
                 });
 
-        GridMat gridMat = GridMat(10, 15);
-        cv::namedWindow("main");
-        cv::imshow("main", gridMat.getMat());
+        std::cout<<"Prepare GM"<<std::endl;
 
+        GridMat gridMat = GridMat(10, 15);
+        //cv::namedWindow("main");
+        //cv::imshow("main", gridMat.getMat());
+        std::cout<<"Set first input blob"<<std::endl;
         ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
         startTime = cv::getTickCount();
+        std::cout<<"Start async"<<std::endl;
         ieWrapper.startAsync();
 
         lastShowTime = cv::getTickCount();
@@ -150,12 +156,15 @@ int main(int argc, char *argv[]) {
                     while(showMats.empty()){   
                         condVar.wait(lock);
                     }
+                    std::cout<<"GM update"<<std::endl;
                     gridMat.update(showMats);
                     currSPF = (lastInferTime / cv::getTickFrequency()) / batchSize;
                     overallSPF = (sumTime / cv::getTickFrequency()) / framesNum;
                 }
+                std::cout<<"GM text update"<<std::endl;
                 gridMat.textUpdate(overallSPF, currSPF);// overallTime is not protected
                 //std::cout<< "Ov FPS: "<< 1./overallSPF << " Cur FPS: "<< 1./currSPF<<std::endl;
+                std::cout<<""<<std::endl;
                 cv::imshow("main", gridMat.getMat());
                 
                 lastShowTime = cv::getTickCount();

@@ -41,7 +41,7 @@ public:
     cv::Size getCellSize() {
         return cellSize;
     }
-
+/*
     void fill(std::vector<cv::Mat>& frames) {
         if (frames.size() > points.size()) {
             throw std::logic_error("Cannot display " + std::to_string(frames.size()) + " channels in a grid with " + std::to_string(points.size()) + " cells");
@@ -60,7 +60,7 @@ public:
             currSourceID++;
         }
     }
-
+*/
     void update(std::queue<cv::Mat>& frames) {
         while(!frames.empty()) {    
             cv::Mat cell = outimg(cv::Rect(points[currSourceID], cellSize));
@@ -69,9 +69,9 @@ public:
 
             if ((cellSize.width == frame.cols) && (cellSize.height == frame.rows)) {
                 frame.copyTo(cell);
-            } else if ((cellSize.width > frame.cols) && (cellSize.height > frame.rows)) {
+            } /*else if ((cellSize.width > frame.cols) && (cellSize.height > frame.rows)) {
                 frame.copyTo(cell(cv::Rect(0, 0, frame.cols, frame.rows)));
-            } else {
+            }*/ else {
                 cv::resize(frame, cell, cellSize);
             }
             
@@ -120,7 +120,6 @@ public:
 
 private:
     cv::Size cellSize;
-    //Current pos in outing
     size_t currSourceID;
     std::set<size_t> unupdatedSourceIDs;
     std::vector<cv::Point> points;
