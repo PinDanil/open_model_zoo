@@ -87,7 +87,12 @@ int main(int argc, char *argv[]) {
         //read all imgs
         std::vector<cv::Mat> inputImgs = {};
         for (const auto & i : imageNames) {
-            inputImgs.push_back(cv::imread(i));
+            const cv::Mat& tmp = cv::imread(i);
+            if (nullptr == tmp.data) {
+                std::cerr << "Could not read image " << i << '\n';
+            } else {
+                inputImgs.push_back(tmp);
+            }
         }
 
         ieWrapper.setBatchSize(8);
@@ -179,6 +184,7 @@ int main(int argc, char *argv[]) {
         }
         
         cv::destroyWindow("main");
+        ieWrapper.request.Wait(IInferRequest::WaitMode::RESULT_READY);
     }
     catch (const std::exception& error) {
         slog::err << error.what() << slog::endl;
