@@ -25,6 +25,7 @@ IEWrapper::IEWrapper(InferenceEngine::Core& ie,
 
 void IEWrapper::setExecPart() {
     // set map of input blob name -- blob dimension pairs
+    network.setBatchSize(8); // set it before you are going to store info about the net because this info is affected
     auto inputInfo = network.getInputsInfo();
     for (auto inputBlobsIt = inputInfo.begin(); inputBlobsIt != inputInfo.end(); ++inputBlobsIt) {
         auto layerName = inputBlobsIt->first;
@@ -64,7 +65,7 @@ void IEWrapper::setExecPart() {
              * by mkldnn, but they can be useful for inferring custom topologies.
             **/
         ie.AddExtension(std::make_shared<Extensions::Cpu::CpuExtensions>(), "CPU");
-    }    
+    }
 
     executableNetwork = ie.LoadNetwork(network, deviceName);
     request = executableNetwork.CreateInferRequest();

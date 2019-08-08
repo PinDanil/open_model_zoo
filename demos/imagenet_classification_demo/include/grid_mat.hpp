@@ -75,7 +75,7 @@ public:
                 cv::resize(frame, cell, cellSize);
             }
             
-            if(currSourceID == points.size())
+            if(currSourceID == points.size() - 1)
                 currSourceID = 0;
             else
                 currSourceID++;
