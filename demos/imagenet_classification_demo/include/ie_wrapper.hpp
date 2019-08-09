@@ -25,13 +25,14 @@ class IEWrapper {
 public:
     IEWrapper(InferenceEngine::Core& ie,
               const std::string& modelPath,
-              const std::string& deviceName, size_t batchSize);
+              const std::string& deviceName, size_t batchSize, size_t nInfReq);
     // For setting input blobs containing images
-    void setInputBlob(const std::string& blobName,const std::vector<cv::Mat>& images,int firstIndex);
+    void setInputBlob(const std::string& blobName,const std::vector<cv::Mat>& images, int requestID, int firstIndex);
     // For setting input blobs containing vectors of data
     void setInputBlob(const std::string& blobName, const std::vector<float>& data);
 
-    void fillBlobs();
+    void fillBlobs(const std::string& blobName,
+                   const std::vector<cv::Mat>& images);
 
     // Get output blob content as a vector given its name (if there are more than one output blob)
     void getOutputBlob(const std::string& blobName, std::vector<float>& output);
@@ -61,10 +62,10 @@ public:
     InferenceEngine::CNNNetReader netReader;
     InferenceEngine::CNNNetwork network;
     InferenceEngine::ExecutableNetwork executableNetwork;
-    InferenceEngine::InferRequest request;
+    std::vector<InferenceEngine::InferRequest> InferRequests;
     std::map<std::string, std::vector<unsigned long>> inputBlobsDimsInfo;
     std::map<std::string, std::vector<unsigned long>> outputBlobsDimsInfo;
 
-    void setExecPart();
+    void setExecPart(size_t numInfReq);
 };
 }  // namespace gaze_estimation

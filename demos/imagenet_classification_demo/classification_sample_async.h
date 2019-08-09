@@ -28,6 +28,9 @@ static const char batch_size_message[] = "Optional. Specify batch to infer. " \
                                             "Default value is 1.";
 
 /// @brief message for top results number
+static const char num_inf_req_message[] = "Optional. Number of infer requests. Default value is 1.";
+
+/// @brief message for top results number
 static const char ntop_message[] = "Optional. Number of top results. Default value is 10.";
 
 /// @brief message for clDNN custom kernels desc
@@ -56,8 +59,11 @@ DEFINE_string(m, "", model_message);
 /// @brief device the target device to infer on <br>
 DEFINE_string(d, "CPU", target_device_message);
 
-/// @brief device the target device to infer on <br>
+/// @brief batch size (defaulf 1)<br>
 DEFINE_uint32(b, 1, batch_size_message);
+
+/// @brief number of infer request <br>
+DEFINE_uint32(nir, 1, num_inf_req_message);
 
 /// @brief Top results number (default 10) <br>
 DEFINE_uint32(nt, 10, ntop_message);
@@ -89,6 +95,7 @@ static void showUsage() {
     std::cout << "      -c \"<absolute_path>\"  " << custom_cldnn_message << std::endl;
     std::cout << "    -d \"<device>\"           " << target_device_message << std::endl;
     std::cout << "    -b                        " << batch_size_message << std::endl;
+    std::cout << "    -nir                      " << num_inf_req_message << std::endl;
     std::cout << "    -nt \"<integer>\"         " << ntop_message << std::endl;
     std::cout << "    -p_msg                  " << plugin_message << std::endl;
 }

@@ -14,7 +14,7 @@ namespace gaze_estimation {
 
 IEWrapper::IEWrapper(InferenceEngine::Core& ie,
                      const std::string& modelPath,
-                     const std::string& deviceName, size_t batchSize):
+                     const std::string& deviceName, size_t batchSize, size_t numInfReq):
            modelPath(modelPath), deviceName(deviceName), ie(ie) {
     netReader.ReadNetwork(modelPath);
     std::string binFileName = fileNameNoExt(modelPath) + ".bin";
@@ -23,10 +23,10 @@ IEWrapper::IEWrapper(InferenceEngine::Core& ie,
     
     resizeNetwork(batchSize);
 
-    setExecPart();
+    setExecPart(size_t numInfReq);
 }
 
-void IEWrapper::setExecPart() {
+void IEWrapper::setExecPart(size_t numInfReq) {
     // set map of input blob name -- blob dimension pairs
     auto inputInfo = network.getInputsInfo();
     for (auto inputBlobsIt = inputInfo.begin(); inputBlobsIt != inputInfo.end(); ++inputBlobsIt) {
@@ -70,20 +70,23 @@ void IEWrapper::setExecPart() {
     }
 
     executableNetwork = ie.LoadNetwork(network, deviceName);
-    request = executableNetwork.CreateInferRequest();
+    
+    for(int infReqID = 0; infReqID < numInfReq; ++infReqID)
+        inferRequests.push_back(executableNetwork.CreateInferRequest());
 }
 
 
 
 void IEWrapper::setInputBlob(const std::string& blobName,
                              const std::vector<cv::Mat>& images,
+                             int requestID, 
                              int firstIndex) {
     auto blobDims = inputBlobsDimsInfo[blobName];
     if (blobDims.size() != 4) {
         throw std::runtime_error("Input data does not match size of the blob");
     }
     
-    auto inputBlob = request.GetBlob(blobName);
+    auto inputBlob = InferRequests.at(requestID).GetBlob(blobName);
     size_t batchSize = network.getBatchSize();
     size_t imgDataSize = images.size();
     
@@ -94,23 +97,14 @@ void IEWrapper::setInputBlob(const std::string& blobName,
     }
 }
 
-void IEWrapper::setInputBlob(const std::string& blobName,
-                             const std::vector<float>& data) {
-    auto blobDims = inputBlobsDimsInfo[blobName];
-    unsigned long dimsProduct = 1;
-    for (auto const& dim : blobDims) {
-        dimsProduct *= dim;
-    }
-    if (dimsProduct != data.size()) {
-        throw std::runtime_error("Input data does not match size of the blob");
-    }
-    auto inputBlob = request.GetBlob(blobName);
-    auto buffer = inputBlob->buffer().as<InferenceEngine::PrecisionTrait<InferenceEngine::Precision::FP32>::value_type *>();
-    for (unsigned long int i = 0; i < data.size(); ++i) {
-        buffer[i] = data[i];
+void IEWrapper::fillBlobs(const std::string& blobName,
+                          const std::vector<cv::Mat>& images) {
+    for(int i = 0, firstIndex = 0; i < inferRequests.size();
+        ++i, firstIndex = (firstIndex+batchSize)%images.size()) {
+        setInputBlob(blobName, images, i, firstIndex);
     }
 }
-
+/*
 void IEWrapper::getOutputBlob(const std::string& blobName,
                               std::vector<float> &output) {
     output.clear();
@@ -142,7 +136,7 @@ void IEWrapper::getOutputBlob(std::vector<float>& output) {
         output.push_back(buffer[i]);
     }
 }
-
+*/
 void IEWrapper::resizeNetwork(size_t batchSize) { //OK ... ?
     auto input_shapes = network.getInputShapes();
     std::string input_name;
@@ -172,12 +166,12 @@ const std::map<std::string, std::vector<unsigned long>>& IEWrapper::getOutputBlo
     return outputBlobsDimsInfo;
 }
 
-void IEWrapper::infer() {
-    request.Infer();
+void IEWrapper::infer(int ID) {
+    InferRequests.at(ID).Infer();
 }
 
-void IEWrapper::startAsync(){
-    request.StartAsync();
+void IEWrapper::startAsync(int ID){
+    InferRequests.at(ID).StartAsync();
 }
 
 void IEWrapper::reshape(const std::map<std::string, std::vector<unsigned long> > &newBlobsDimsInfo) {
@@ -200,7 +194,7 @@ void IEWrapper::reshape(const std::map<std::string, std::vector<unsigned long> >
 void IEWrapper::printPerlayerPerformance() const {
     std::cout << "\n-----------------START-----------------" << std::endl;
     std::cout << "Performance for " << modelPath << " model\n" << std::endl;
-    printPerformanceCounts(request, std::cout, getFullDeviceName(ie, deviceName), false);
+    //printPerformanceCounts(request, std::cout, getFullDeviceName(ie, deviceName), false);
     std::cout << "------------------END------------------\n" << std::endl;
 }
 }  // namespace gaze_estimation
