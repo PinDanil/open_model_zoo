@@ -73,13 +73,12 @@ int main(int argc, char *argv[]) {
 
         if(!FLAGS_b)
             FLAGS_b = 1;
-
+            
         Core ie;
         gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d, FLAGS_b, FLAGS_nir);
         // IRequest, model and devce is set.
         size_t batchSize = ieWrapper.getBatchSize();
 
-        size_t infReqNum = FLAGS_nir;
 
         std::vector<std::string> imageNames;
         parseInputFilesArguments(imageNames);
@@ -115,33 +114,31 @@ int main(int argc, char *argv[]) {
         std::condition_variable condVar;
         std::mutex mutex;
         std::mutex showMutex;
-        for(size_t i = 0; i < infReqNum; ++i) {
-            ieWrapper.inferRequests.at(i).SetCompletionCallback(//need fix
-                    [&]{
-                        if(!quitFlag) {                        
-                            {
-                                std::lock_guard<std::mutex> lock(mutex);
-                                for(size_t i = 0; i < batchSize; ++i)
-                                    showMats.push(inputImgs[(curImg+i)%inputImgs.size()]);
-                                sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
-                                framesNum+=batchSize;
-                            }
-                            condVar.notify_one();
-
-                            curImg=(curImg+batchSize)%inputImgs.size();
-                            ieWrapper.setInputBlob(inputBlobName, inputImgs, i, curImg);//!!
-
-                            startTime = cv::getTickCount();
-                            ieWrapper.startAsync();
+        ieWrapper.SetCompletionCallback(
+                [&]{
+                    if(!quitFlag) {                        
+                        {
+                            std::lock_guard<std::mutex> lock(mutex);
+                            for(size_t i = 0; i < batchSize; ++i)
+                                showMats.push(inputImgs[(curImg+i)%inputImgs.size()]);
+                            sumTime += lastInferTime = cv::getTickCount() - startTime; // >:-/
+                            framesNum+=batchSize;
                         }
-                    });
-        }
+                        condVar.notify_one();
+
+                        curImg=(curImg+batchSize)%inputImgs.size();
+                        //ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
+
+                        startTime = cv::getTickCount();
+                        ieWrapper.startAsync();
+                    }
+                });
+
         GridMat gridMat = GridMat(10, 15);
         cv::namedWindow("main");
         cv::imshow("main", gridMat.getMat());
 
-        ieWrapper.fillBlobs(inputBlobName, inputImgs);//!!
-        curImg = (batchSize*infReqNum)%inputImgs.size();
+        //ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
         startTime = cv::getTickCount();
 
         ieWrapper.startAsync();

@@ -14,19 +14,26 @@ namespace gaze_estimation {
 
 IEWrapper::IEWrapper(InferenceEngine::Core& ie,
                      const std::string& modelPath,
-                     const std::string& deviceName, size_t batchSize, size_t numInfReq):
-           modelPath(modelPath), deviceName(deviceName), ie(ie) {
+                     const std::string& deviceName, 
+                     size_t batchSize,
+                     size_t irNum):
+                     modelPath(modelPath),
+                     deviceName(deviceName),
+                     ie(ie),
+                     batchSize(batchSize),
+                     irNum(irNum) {
+    
     netReader.ReadNetwork(modelPath);
     std::string binFileName = fileNameNoExt(modelPath) + ".bin";
     netReader.ReadWeights(binFileName);
     network = netReader.getNetwork();
     
-    resizeNetwork(batchSize);
+    resizeNetwork();
 
-    setExecPart(numInfReq);
+    setExecPart();
 }
 
-void IEWrapper::setExecPart(int numInfReq) {
+void IEWrapper::setExecPart() {
     // set map of input blob name -- blob dimension pairs
     auto inputInfo = network.getInputsInfo();
     for (auto inputBlobsIt = inputInfo.begin(); inputBlobsIt != inputInfo.end(); ++inputBlobsIt) {
@@ -71,7 +78,7 @@ void IEWrapper::setExecPart(int numInfReq) {
 
     executableNetwork = ie.LoadNetwork(network, deviceName);
     
-    for(int infReqID = 0; infReqID < numInfReq; ++infReqID)
+    for(int infReqID = 0; infReqID < irNum; ++infReqID)
         InferRequests.push_back(executableNetwork.CreateInferRequest());
 }
 
@@ -79,17 +86,21 @@ void IEWrapper::setExecPart(int numInfReq) {
 
 void IEWrapper::setInputBlob(const std::string& blobName,
                              const std::vector<cv::Mat>& images,
-                             int requestID, 
+                             InferenceEngine::InferRequest& ir, 
                              int firstIndex) {
     auto blobDims = inputBlobsDimsInfo[blobName];
     if (blobDims.size() != 4) {
         throw std::runtime_error("Input data does not match size of the blob");
     }
     
-    auto inputBlob = InferRequests.at(requestID).GetBlob(blobName);
+    auto inputBlob = ir.GetBlob(blobName);
     size_t batchSize = network.getBatchSize();
     size_t imgDataSize = images.size();
     
+    // >:-/
+    std::shared_ptr<InferenceEngine::InferRequest> ptr(ir);
+    infReqToCurrImg.insert(std::make_pair(ptr, firstIndex));
+
     for(size_t i = 0; i < batchSize; i++) {        
         cv::Mat inputImg = images.at((firstIndex+i)%imgDataSize);
         matU8ToBlob<uint8_t>(inputImg, inputBlob, i);
@@ -101,9 +112,9 @@ void IEWrapper::fillBlobs(const std::string& blobName,
                           const std::vector<cv::Mat>& images) {
     
     int batchSize = network.getBatchSize();
-    for(size_t i = 0, firstIndex = 0; i < InferRequests.size();
+    for(int i = 0, firstIndex = 0; i < irNum;
         ++i, firstIndex = (firstIndex+batchSize)%images.size()) {
-        setInputBlob(blobName, images, i, firstIndex);
+        setInputBlob(blobName, images, InferRequests.at(i), firstIndex);
     }
 }
 /*
@@ -139,7 +150,7 @@ void IEWrapper::getOutputBlob(std::vector<float>& output) {
     }
 }
 */
-void IEWrapper::resizeNetwork(size_t batchSize) { //OK ... ?
+void IEWrapper::resizeNetwork() { //OK ... ?
     auto input_shapes = network.getInputShapes();
     std::string input_name;
     SizeVector input_shape;
@@ -169,7 +180,7 @@ const std::map<std::string, std::vector<unsigned long>>& IEWrapper::getOutputBlo
 }
 
 void IEWrapper::infer() {
-    for(size_t i = 0; i < InferRequests.size(); ++i)
+    for(int i = 0; i < irNum; ++i)
         InferRequests.at(i).Infer();
 }
 
@@ -178,7 +189,7 @@ void IEWrapper::infer(size_t ID) {
 }
 
 void IEWrapper::startAsync(){
-    for(size_t i = 0; i < InferRequests.size(); ++i)
+    for(int i = 0; i < irNum; ++i)
         InferRequests.at(i).StartAsync();
 }
 
@@ -201,8 +212,13 @@ void IEWrapper::reshape(const std::map<std::string, std::vector<unsigned long> >
     }
     network.reshape(inputShapes);
     
-    int numInfReq = InferRequests.size();
-    setExecPart(numInfReq);
+    setExecPart();
+}
+
+template<class T>
+void SetCompletionCallback(const T& callBackToSet) {
+    for(int i = 0; i < irNum; ++i)
+        InferRequests.at(i).SetCompletionCallback(callBackToSet);
 }
 
 void IEWrapper::printPerlayerPerformance() const {

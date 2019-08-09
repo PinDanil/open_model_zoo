@@ -25,9 +25,10 @@ class IEWrapper {
 public:
     IEWrapper(InferenceEngine::Core& ie,
               const std::string& modelPath,
-              const std::string& deviceName, size_t batchSize, size_t nInfReq);
+              const std::string& deviceName, size_t batchSize, size_t irNum);
     // For setting input blobs containing images
-    void setInputBlob(const std::string& blobName,const std::vector<cv::Mat>& images, int requestID, int firstIndex);
+    void setInputBlob(const std::string& blobName,const std::vector<cv::Mat>& images,
+                      InferenceEngine::InferRequest& ir, int firstIndex);
     // For setting input blobs containing vectors of data
     void setInputBlob(const std::string& blobName, const std::vector<float>& data);
 
@@ -50,15 +51,17 @@ public:
 
     void reshape(const std::map<std::string, std::vector<unsigned long>>& newBlobsDimsInfo);
 
-    void resizeNetwork(size_t batchSize);
-
-    void infer(size_t ID);
+    void resizeNetwork();
 
     void infer();
-
-    void startAsync(size_t ID);
+    void infer(size_t ID);
 
     void startAsync();
+    void startAsync(size_t ID);
+
+    template<class T>
+    void SetCompletionCallback(const T& callBackToSet);
+
 //protected:
     std::string modelPath;
     std::string deviceName;
@@ -66,10 +69,15 @@ public:
     InferenceEngine::CNNNetReader netReader;
     InferenceEngine::CNNNetwork network;
     InferenceEngine::ExecutableNetwork executableNetwork;
-    std::vector<InferenceEngine::InferRequest> InferRequests;
     std::map<std::string, std::vector<unsigned long>> inputBlobsDimsInfo;
     std::map<std::string, std::vector<unsigned long>> outputBlobsDimsInfo;
 
-    void setExecPart(int numInfReq);
+    //new
+    std::vector<InferenceEngine::InferRequest> InferRequests;
+    std::map<std::shared_ptr<InferenceEngine::InferRequest>, int> infReqToCurrImg;
+    int batchSize;
+    int irNum;
+    
+    void setExecPart();
 };
 }  // namespace gaze_estimation
