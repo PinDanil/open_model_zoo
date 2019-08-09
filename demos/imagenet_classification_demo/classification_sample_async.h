@@ -23,6 +23,10 @@ static const char model_message[] = "Required. Path to an .xml file with a train
 static const char target_device_message[] = "Optional. Specify the target device to infer on (the list of available devices is shown below). " \
                                             "Default value is CPU. Sample will look for a suitable plugin for device specified.";
 
+/// @brief message for batch size 
+static const char batch_size_message[] = "Optional. Specify batch to infer. " \
+                                            "Default value is 1.";
+
 /// @brief message for top results number
 static const char ntop_message[] = "Optional. Number of top results. Default value is 10.";
 
@@ -51,6 +55,9 @@ DEFINE_string(m, "", model_message);
 
 /// @brief device the target device to infer on <br>
 DEFINE_string(d, "CPU", target_device_message);
+
+/// @brief device the target device to infer on <br>
+DEFINE_uint32(b, 1, batch_size_message);
 
 /// @brief Top results number (default 10) <br>
 DEFINE_uint32(nt, 10, ntop_message);
@@ -81,6 +88,7 @@ static void showUsage() {
     std::cout << "          Or" << std::endl;
     std::cout << "      -c \"<absolute_path>\"  " << custom_cldnn_message << std::endl;
     std::cout << "    -d \"<device>\"           " << target_device_message << std::endl;
+    std::cout << "    -b                        " << batch_size_message << std::endl;
     std::cout << "    -nt \"<integer>\"         " << ntop_message << std::endl;
     std::cout << "    -p_msg                  " << plugin_message << std::endl;
 }

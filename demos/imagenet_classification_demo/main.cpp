@@ -70,10 +70,15 @@ int main(int argc, char *argv[]) {
         if (!ParseAndCheckCommandLine(argc, argv)) {
             return 0;
         }
-        size_t batchSize = 1;
+
+        if(!FLAGS_b)
+            FLAGS_b = 1;
+            
         Core ie;
-        gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d, batchSize);
+        gaze_estimation::IEWrapper ieWrapper(ie, FLAGS_m, FLAGS_d, FLAGS_b);
         // IRequest, model and devce is set.
+        size_t batchSize = ieWrapper.getBatchSize();
+
 
         std::vector<std::string> imageNames;
         parseInputFilesArguments(imageNames);
@@ -139,12 +144,11 @@ int main(int argc, char *argv[]) {
         ieWrapper.startAsync();
 
         lastShowTime = cv::getTickCount();
-
         cv::Mat tmpMat;
         while(true) {      
             if( (cv::getTickCount() - lastShowTime) / cv::getTickFrequency() >= 0.05){
                 double currSPF; 
-                double overallSPF; 
+                double overallSPF;
                 {
                     std::unique_lock<std::mutex> lock(mutex);
                     while(showMats.empty()){   
@@ -169,7 +173,6 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-        
         cv::destroyWindow("main");
         ieWrapper.request.Wait(IInferRequest::WaitMode::RESULT_READY);
     }
