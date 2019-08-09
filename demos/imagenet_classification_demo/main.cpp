@@ -79,6 +79,7 @@ int main(int argc, char *argv[]) {
         // IRequest, model and devce is set.
         size_t batchSize = ieWrapper.getBatchSize();
 
+        size_t infReqNum = FLAGS_nir;
 
         std::vector<std::string> imageNames;
         parseInputFilesArguments(imageNames);
@@ -114,7 +115,7 @@ int main(int argc, char *argv[]) {
         std::condition_variable condVar;
         std::mutex mutex;
         std::mutex showMutex;
-        for(int i = 0; i < ieWrapper.inferRequests.size(); ++i) {
+        for(size_t i = 0; i < infReqNum; ++i) {
             ieWrapper.inferRequests.at(i).SetCompletionCallback(//need fix
                     [&]{
                         if(!quitFlag) {                        
@@ -128,7 +129,7 @@ int main(int argc, char *argv[]) {
                             condVar.notify_one();
 
                             curImg=(curImg+batchSize)%inputImgs.size();
-                            ieWrapper.setInputBlob(inputBlobName, inputImgs, curImg);//!!
+                            ieWrapper.setInputBlob(inputBlobName, inputImgs, i, curImg);//!!
 
                             startTime = cv::getTickCount();
                             ieWrapper.startAsync();
@@ -140,6 +141,7 @@ int main(int argc, char *argv[]) {
         cv::imshow("main", gridMat.getMat());
 
         ieWrapper.fillBlobs(inputBlobName, inputImgs);//!!
+        curImg = (batchSize*infReqNum)%inputImgs.size();
         startTime = cv::getTickCount();
 
         ieWrapper.startAsync();
@@ -175,7 +177,7 @@ int main(int argc, char *argv[]) {
             }
         }
         cv::destroyWindow("main");
-        ieWrapper.request.Wait(IInferRequest::WaitMode::RESULT_READY);
+        //ieWrapper.request.Wait(IInferRequest::WaitMode::RESULT_READY);
     }
     catch (const std::exception& error) {
         slog::err << error.what() << slog::endl;

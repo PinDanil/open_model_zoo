@@ -23,10 +23,10 @@ IEWrapper::IEWrapper(InferenceEngine::Core& ie,
     
     resizeNetwork(batchSize);
 
-    setExecPart(size_t numInfReq);
+    setExecPart(numInfReq);
 }
 
-void IEWrapper::setExecPart(size_t numInfReq) {
+void IEWrapper::setExecPart(int numInfReq) {
     // set map of input blob name -- blob dimension pairs
     auto inputInfo = network.getInputsInfo();
     for (auto inputBlobsIt = inputInfo.begin(); inputBlobsIt != inputInfo.end(); ++inputBlobsIt) {
@@ -72,7 +72,7 @@ void IEWrapper::setExecPart(size_t numInfReq) {
     executableNetwork = ie.LoadNetwork(network, deviceName);
     
     for(int infReqID = 0; infReqID < numInfReq; ++infReqID)
-        inferRequests.push_back(executableNetwork.CreateInferRequest());
+        InferRequests.push_back(executableNetwork.CreateInferRequest());
 }
 
 
@@ -99,7 +99,9 @@ void IEWrapper::setInputBlob(const std::string& blobName,
 
 void IEWrapper::fillBlobs(const std::string& blobName,
                           const std::vector<cv::Mat>& images) {
-    for(int i = 0, firstIndex = 0; i < inferRequests.size();
+    
+    int batchSize = network.getBatchSize();
+    for(size_t i = 0, firstIndex = 0; i < InferRequests.size();
         ++i, firstIndex = (firstIndex+batchSize)%images.size()) {
         setInputBlob(blobName, images, i, firstIndex);
     }
@@ -166,11 +168,21 @@ const std::map<std::string, std::vector<unsigned long>>& IEWrapper::getOutputBlo
     return outputBlobsDimsInfo;
 }
 
-void IEWrapper::infer(int ID) {
+void IEWrapper::infer() {
+    for(size_t i = 0; i < InferRequests.size(); ++i)
+        InferRequests.at(i).Infer();
+}
+
+void IEWrapper::infer(size_t ID) {
     InferRequests.at(ID).Infer();
 }
 
-void IEWrapper::startAsync(int ID){
+void IEWrapper::startAsync(){
+    for(size_t i = 0; i < InferRequests.size(); ++i)
+        InferRequests.at(i).StartAsync();
+}
+
+void IEWrapper::startAsync(size_t ID){
     InferRequests.at(ID).StartAsync();
 }
 
@@ -188,7 +200,9 @@ void IEWrapper::reshape(const std::map<std::string, std::vector<unsigned long> >
         inputShapes[blobName] = blobDims_;
     }
     network.reshape(inputShapes);
-    setExecPart();
+    
+    int numInfReq = InferRequests.size();
+    setExecPart(numInfReq);
 }
 
 void IEWrapper::printPerlayerPerformance() const {

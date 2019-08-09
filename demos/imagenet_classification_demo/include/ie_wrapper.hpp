@@ -52,7 +52,11 @@ public:
 
     void resizeNetwork(size_t batchSize);
 
+    void infer(size_t ID);
+
     void infer();
+
+    void startAsync(size_t ID);
 
     void startAsync();
 //protected:
@@ -66,6 +70,6 @@ public:
     std::map<std::string, std::vector<unsigned long>> inputBlobsDimsInfo;
     std::map<std::string, std::vector<unsigned long>> outputBlobsDimsInfo;
 
-    void setExecPart(size_t numInfReq);
+    void setExecPart(int numInfReq);
 };
 }  // namespace gaze_estimation
