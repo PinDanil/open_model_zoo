@@ -23,18 +23,18 @@ struct DetectorConfig : public CnnConfig {
     float increase_scale_x{1.f};
     float increase_scale_y{1.f};
     bool is_async = false;
-    int input_h = 320;
-    int input_w = 544;
 };
 
 class ObjectDetector {
 private:
     InferenceEngine::InferRequest::Ptr request;
     DetectorConfig config_;
-    InferenceEngine::InferencePlugin plugin_;
+    InferenceEngine::Core ie_;
+    std::string deviceName_;
 
     InferenceEngine::ExecutableNetwork net_;
     std::string input_name_;
+    std::string im_info_name_;
     std::string output_name_;
     int max_detections_count_;
     int object_size_;
@@ -52,13 +52,14 @@ private:
     void fetchResults();
 
 public:
-    explicit ObjectDetector(const DetectorConfig& config,
-                            const InferenceEngine::InferencePlugin& plugin);
+    ObjectDetector(const DetectorConfig& config,
+                   const InferenceEngine::Core& ie,
+                   const std::string & deviceName);
 
     void submitFrame(const cv::Mat &frame, int frame_idx);
     void waitAndFetchResults();
 
     const TrackedObjects& getResults() const;
 
-    void PrintPerformanceCounts();
+    void PrintPerformanceCounts(std::string fullDeviceName);
 };

@@ -56,7 +56,7 @@ void showUsage() {
     std::cout << "    -d \"<device>\"                " << target_device_message << std::endl;
     std::cout << "    -nc                          " << num_cameras << std::endl;
     std::cout << "    -bs                          " << batch_size << std::endl;
-    std::cout << "    -n_ir                        " << num_infer_requests << std::endl;
+    std::cout << "    -nireq                       " << num_infer_requests << std::endl;
     std::cout << "    -n_iqs                       " << input_queue_size << std::endl;
     std::cout << "    -fps_sp                      " << fps_sampling_period << std::endl;
     std::cout << "    -n_sp                        " << num_sampling_periods << std::endl;
@@ -74,6 +74,7 @@ bool ParseAndCheckCommandLine(int argc, char *argv[]) {
     gflags::ParseCommandLineNonHelpFlags(&argc, &argv, true);
     if (FLAGS_h) {
         showUsage();
+        showAvailableDevices();
         return false;
     }
     slog::info << "Parsing input parameters" << slog::endl;
@@ -94,7 +95,7 @@ bool ParseAndCheckCommandLine(int argc, char *argv[]) {
         slog::info << "\tCLDNN custom kernels map:  " << FLAGS_c << slog::endl;
     }
     slog::info << "\tBatch size:                " << FLAGS_bs << slog::endl;
-    slog::info << "\tNumber of infer requests:  " << FLAGS_n_ir << slog::endl;
+    slog::info << "\tNumber of infer requests:  " << FLAGS_nireq << slog::endl;
     slog::info << "\tNumber of input web cams:  "  << FLAGS_nc << slog::endl;
 
     return true;
@@ -227,7 +228,7 @@ int main(int argc, char* argv[]) {
 
         IEGraph::InitParams graphParams;
         graphParams.batchSize       = FLAGS_bs;
-        graphParams.maxRequests     = FLAGS_n_ir;
+        graphParams.maxRequests     = FLAGS_nireq;
         graphParams.collectStats    = FLAGS_show_stats;
         graphParams.reportPerf      = FLAGS_pc;
         graphParams.modelPath       = modelPath;
@@ -302,13 +303,14 @@ int main(int argc, char* argv[]) {
             auto output = req->GetBlob(outputDataBlobNames[0]);
 
             float* dataPtr = output->buffer();
-            InferenceEngine::SizeVector svec = output->dims();
+            InferenceEngine::SizeVector svec = output->getTensorDesc().getDims();
             size_t total = 1;
-            for (size_t j = 0; j < svec.size(); j++) {
-                total *= svec[j];
+            for (auto v : svec) {
+                total *= v;
             }
 
-            std::vector<Detections> detections(svec[1] / 200);
+
+            std::vector<Detections> detections(getTensorHeight(output->getTensorDesc()) / 200);
             for (auto& d : detections) {
                 d.set(new std::vector<Face>);
             }
@@ -338,9 +340,12 @@ int main(int argc, char* argv[]) {
         std::mutex statMutex;
         std::stringstream statStream;
 
+        std::cout << "To close the application, press 'CTRL+C' here";
         if (!FLAGS_no_show) {
-            std::cout << "To close the application, press 'CTRL+C' or any key with focus on the output window" << std::endl;
+            std::cout << " or switch to the output window and press ESC key";
         }
+        std::cout << std::endl;
+
         const size_t outputQueueSize = 1;
         AsyncOutput output(FLAGS_show_stats, outputQueueSize,
         [&](const std::vector<std::shared_ptr<VideoFrame>>& result) {

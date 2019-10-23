@@ -23,11 +23,13 @@
 #include <cpp/ie_cnn_net_reader.h>
 #include <ie_plugin_config.hpp>
 
+#include <samples/common.hpp>
 #include <samples/slog.hpp>
-#include <samples/ocv_common.hpp>
 #include "perf_timer.hpp"
 #include "input.hpp"
+#ifdef WITH_EXTENSIONS
 #include <ext_list.hpp>
+#endif
 
 void loadImageToIEGraph(cv::Mat img, void* ie_buffer);
 
@@ -51,8 +53,9 @@ private:
     std::vector<std::string> outputDataBlobNames;
 
     bool printPerfReport;
+    std::string deviceName;
 
-    InferenceEngine::InferencePlugin plugin;
+    InferenceEngine::Core ie;
     std::queue<InferenceEngine::InferRequest::Ptr> availableRequests;
 
     struct BatchRequestDesc {
@@ -112,6 +115,6 @@ public:
 
     Stats getStats() const;
 
-    void printPerformanceCounts();
+    void printPerformanceCounts(std::string fullDeviceName);
 };
 

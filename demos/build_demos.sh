@@ -27,9 +27,24 @@ trap 'error ${LINENO}' ERR
 
 DEMOS_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-if [[ -z "${InferenceEngine_DIR}" ]]; then
-    printf "\nInferenceEngine_DIR environment variable is not set. Please set it to build the demo applications. \n"
+printf "\nSetting environment variables for building demos...\n"
+
+if [ -z "$INTEL_OPENVINO_DIR" ]; then
+    if [ -e "$DEMOS_PATH/../../bin/setupvars.sh" ]; then
+        setvars_path="$DEMOS_PATH/../../bin/setupvars.sh"
+    elif [ -e "$DEMOS_PATH/../../../bin/setupvars.sh" ]; then
+        setvars_path="$DEMOS_PATH/../../../bin/setupvars.sh"
+    else
+        printf "Error: Failed to set the environment variables automatically. To fix, run the following command:\n source <INSTALL_DIR>/bin/setupvars.sh\n where INSTALL_DIR is the OpenVINO installation directory.\n\n"
+        exit 1
+    fi
+    if ! source $setvars_path ; then
+        printf "Unable to run ./setupvars.sh. Please check its presence. \n\n"
     exit 1
+fi
+else
+    # case for run with `sudo -E`
+    source "$INTEL_OPENVINO_DIR/bin/setupvars.sh"
 fi
 
 if ! command -v cmake &>/dev/null; then
@@ -55,5 +70,4 @@ cd $build_dir
 cmake -DCMAKE_BUILD_TYPE=Release $DEMOS_PATH
 make $NUM_THREADS
 
-
-printf "\nBuild completed, you can find binaries for all demos in the $HOME/omz_demos_build/${OS_PATH}/Release subfolder.\n\n"
+printf "\nBuild completed, you can find binaries for all demos in the $build_dir/${OS_PATH}/Release subfolder.\n\n"

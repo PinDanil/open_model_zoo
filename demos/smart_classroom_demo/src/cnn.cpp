@@ -38,7 +38,7 @@ void CnnDLSDKBase::Load() {
     if (in.size() != 1) {
         THROW_IE_EXCEPTION << "Network should have only one input";
     }
-    in.begin()->second->setInputPrecision(Precision::U8);
+    in.begin()->second->setPrecision(Precision::U8);
     in.begin()->second->setLayout(Layout::NCHW);
     input_blob_name_ = in.begin()->first;
 
@@ -48,7 +48,7 @@ void CnnDLSDKBase::Load() {
         output_blobs_names_.push_back(item.first);
     }
 
-    executable_network_ = config_.plugin.LoadNetwork(net_reader.getNetwork(), {});
+    executable_network_ = config_.ie.LoadNetwork(net_reader.getNetwork(), config_.deviceName);
     infer_request_ = executable_network_.CreateInferRequest();
 }
 
@@ -68,7 +68,8 @@ void CnnDLSDKBase::InferBatch(
             matU8ToBlob<uint8_t>(frames[batch_i + b], input, b);
         }
 
-        infer_request_.SetBatch(current_batch_size);
+        if (config_.max_batch_size != 1)
+            infer_request_.SetBatch(current_batch_size);
         infer_request_.Infer();
 
         InferenceEngine::BlobMap blobs;
@@ -79,12 +80,12 @@ void CnnDLSDKBase::InferBatch(
     }
 }
 
-void CnnDLSDKBase::PrintPerformanceCounts() const {
+void CnnDLSDKBase::PrintPerformanceCounts(std::string fullDeviceName) const {
     if (!config_.enabled) {
         return;
     }
     std::cout << "Performance counts for " << config_.path_to_model << std::endl << std::endl;
-    ::printPerformanceCounts(infer_request_.GetPerformanceCounts(), std::cout, false);
+    ::printPerformanceCounts(infer_request_, std::cout, fullDeviceName, false);
 }
 
 void CnnDLSDKBase::Infer(const cv::Mat& frame,

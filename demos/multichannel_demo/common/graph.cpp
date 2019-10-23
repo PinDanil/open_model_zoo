@@ -47,21 +47,22 @@ void IEGraph::initNetwork(const std::string& deviceName) {
         throw std::logic_error("Failed to parse model!");
     }
 
-    plugin = InferenceEngine::PluginDispatcher().getPluginByDevice(deviceName);
     if (deviceName.find("CPU") != std::string::npos) {
-        plugin.AddExtension(std::make_shared<InferenceEngine::Extensions::Cpu::CpuExtensions>());
-        plugin.SetConfig({{InferenceEngine::PluginConfigParams::KEY_CPU_BIND_THREAD, "NO"}});
+#ifdef WITH_EXTENSIONS
+        ie.AddExtension(std::make_shared<InferenceEngine::Extensions::Cpu::CpuExtensions>(), "CPU");
+#endif
+        ie.SetConfig({{InferenceEngine::PluginConfigParams::KEY_CPU_BIND_THREAD, "NO"}}, "CPU");
     }
     if (!cpuExtensionPath.empty()) {
         auto extension_ptr = InferenceEngine::make_so_pointer<InferenceEngine::IExtension>(cpuExtensionPath);
-        plugin.AddExtension(extension_ptr);
+        ie.AddExtension(extension_ptr, "CPU");
     }
     if (!cldnnConfigPath.empty()) {
-        plugin.SetConfig({{InferenceEngine::PluginConfigParams::KEY_CONFIG_FILE, cldnnConfigPath}});
+        ie.SetConfig({{InferenceEngine::PluginConfigParams::KEY_CONFIG_FILE, cldnnConfigPath}}, "GPU");
     }
-    /** Setting plugin parameter for collecting per layer metrics **/
+    /** Setting parameter for collecting per layer metrics **/
     if (printPerfReport) {
-        plugin.SetConfig({ { InferenceEngine::PluginConfigParams::KEY_PERF_COUNT, InferenceEngine::PluginConfigParams::YES } });
+        ie.SetConfig({ { InferenceEngine::PluginConfigParams::KEY_PERF_COUNT, InferenceEngine::PluginConfigParams::YES } });
     }
 
     // Set batch size
@@ -77,7 +78,7 @@ void IEGraph::initNetwork(const std::string& deviceName) {
     }
 
     InferenceEngine::ExecutableNetwork network;
-    network = plugin.LoadNetwork(netReader.getNetwork(), {});
+    network = ie.LoadNetwork(netReader.getNetwork(), deviceName);
 
     InferenceEngine::InputsDataMap inputInfo(netReader.getNetwork().getInputsInfo());
     if (inputInfo.size() != 1) {
@@ -196,7 +197,7 @@ IEGraph::IEGraph(const InitParams& p):
     confidenceThreshold(0.5f), batchSize(p.batchSize),
     modelPath(p.modelPath), weightsPath(p.weightsPath),
     cpuExtensionPath(p.cpuExtPath), cldnnConfigPath(p.cldnnConfigPath),
-    printPerfReport(p.reportPerf),
+    printPerfReport(p.reportPerf), deviceName(p.deviceName),
     maxRequests(p.maxRequests) {
     assert(p.maxRequests > 0);
 
@@ -274,7 +275,7 @@ IEGraph::~IEGraph() {
         }
         if (printPerfReport) {
             slog::info << "Performance counts report" << slog::endl << slog::endl;
-            printPerformanceCounts();
+            printPerformanceCounts(getFullDeviceName(ie, deviceName));
         }
         condVarAvailableRequests.notify_one();
     }
@@ -287,6 +288,6 @@ IEGraph::Stats IEGraph::getStats() const {
     return Stats{perfTimerPreprocess.getValue(), perfTimerInfer.getValue()};
 }
 
-void IEGraph::printPerformanceCounts() {
-    ::printPerformanceCounts(availableRequests.front()->GetPerformanceCounts(), std::cout, false);
+void IEGraph::printPerformanceCounts(std::string fullDeviceName) {
+    ::printPerformanceCounts(*availableRequests.front(), std::cout, fullDeviceName, false);
 }

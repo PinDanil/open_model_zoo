@@ -24,7 +24,7 @@ from math import exp as exp
 from time import time
 
 import cv2
-from openvino.inference_engine import IENetwork, IEPlugin
+from openvino.inference_engine import IENetwork, IECore
 
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO, stream=sys.stdout)
 log = logging.getLogger()
@@ -41,7 +41,6 @@ def build_argparser():
     args.add_argument("-l", "--cpu_extension",
                       help="Optional. Required for CPU custom layers. Absolute path to a shared library with "
                            "the kernels implementations.", type=str, default=None)
-    args.add_argument("-pp", "--plugin_dir", help="Optional. Path to a plugin folder", type=str, default=None)
     args.add_argument("-d", "--device",
                       help="Optional. Specify the target device to infer on; CPU, GPU, FPGA, HDDL or MYRIAD is"
                            " acceptable. The sample will look for a suitable plugin for device specified. "
@@ -59,25 +58,29 @@ def build_argparser():
     return parser
 
 
-class YoloV3Params:
+class YoloParams:
     # ------------------------------------------- Extracting layer parameters ------------------------------------------
     # Magic numbers are copied from yolo samples
     def __init__(self, param, side):
-        self.num = 3 if 'num' not in param else len(param['mask'].split(',')) if 'mask' in param else int(param['num'])
+        self.num = 3 if 'num' not in param else int(param['num'])
         self.coords = 4 if 'coords' not in param else int(param['coords'])
         self.classes = 80 if 'classes' not in param else int(param['classes'])
         self.anchors = [10.0, 13.0, 16.0, 30.0, 33.0, 23.0, 30.0, 61.0, 62.0, 45.0, 59.0, 119.0, 116.0, 90.0, 156.0,
                         198.0,
                         373.0, 326.0] if 'anchors' not in param else [float(a) for a in param['anchors'].split(',')]
+
+        if 'mask' in param:
+            mask = [int(idx) for idx in param['mask'].split(',')]
+            self.num = len(mask)
+
+            maskedAnchors = []
+            for idx in mask:
+                maskedAnchors += [self.anchors[idx * 2], self.anchors[idx * 2 + 1]]
+            self.anchors = maskedAnchors
+
         self.side = side
-        if self.side == 13:
-            self.anchor_offset = 2 * 6
-        elif self.side == 26:
-            self.anchor_offset = 2 * 3
-        elif self.side == 52:
-            self.anchor_offset = 2 * 0
-        else:
-            assert False, "Invalid output size. Only 13, 26 and 52 sizes are supported for output spatial dimensions"
+        self.isYoloV3 = 'mask' in param  # Weak way to determine but the only one.
+
 
     def log_params(self):
         params_to_print = {'classes': self.classes, 'num': self.num, 'coords': self.coords, 'anchors': self.anchors}
@@ -123,16 +126,19 @@ def parse_yolo_region(blob, resized_image_shape, original_im_shape, params, thre
             if scale < threshold:
                 continue
             box_index = entry_index(params.side, params.coords, params.classes, n * side_square + i, 0)
-            x = (col + predictions[box_index + 0 * side_square]) / params.side * resized_image_w
-            y = (row + predictions[box_index + 1 * side_square]) / params.side * resized_image_h
+            # Network produces location predictions in absolute coordinates of feature maps.
+            # Scale it to relative coordinates.
+            x = (col + predictions[box_index + 0 * side_square]) / params.side
+            y = (row + predictions[box_index + 1 * side_square]) / params.side
             # Value for exp is very big number in some cases so following construction is using here
             try:
                 w_exp = exp(predictions[box_index + 2 * side_square])
                 h_exp = exp(predictions[box_index + 3 * side_square])
             except OverflowError:
                 continue
-            w = w_exp * params.anchors[params.anchor_offset + 2 * n]
-            h = h_exp * params.anchors[params.anchor_offset + 2 * n + 1]
+            # Depends on topology we need to normalize sizes by feature maps (up to YOLOv3) or by input shape (YOLOv3)
+            w = w_exp * params.anchors[2 * n] / (resized_image_w if params.isYoloV3 else params.side)
+            h = h_exp * params.anchors[2 * n + 1] / (resized_image_h if params.isYoloV3 else params.side)
             for j in range(params.classes):
                 class_index = entry_index(params.side, params.coords, params.classes, n * side_square + i,
                                           params.coords + 1 + j)
@@ -140,7 +146,7 @@ def parse_yolo_region(blob, resized_image_shape, original_im_shape, params, thre
                 if confidence < threshold:
                     continue
                 objects.append(scale_bbox(x=x, y=y, h=h, w=w, class_id=j, confidence=confidence,
-                                          h_scale=orig_im_h / resized_image_h, w_scale=orig_im_w / resized_image_w))
+                                          h_scale=orig_im_h, w_scale=orig_im_w))
     return objects
 
 
@@ -166,27 +172,27 @@ def main():
     model_bin = os.path.splitext(model_xml)[0] + ".bin"
 
     # ------------- 1. Plugin initialization for specified device and load extensions library if specified -------------
-    plugin = IEPlugin(device=args.device, plugin_dirs=args.plugin_dir)
+    log.info("Creating Inference Engine...")
+    ie = IECore()
     if args.cpu_extension and 'CPU' in args.device:
-        plugin.add_cpu_extension(args.cpu_extension)
+        ie.add_extension(args.cpu_extension, "CPU")
 
     # -------------------- 2. Reading the IR generated by the Model Optimizer (.xml and .bin files) --------------------
     log.info("Loading network files:\n\t{}\n\t{}".format(model_xml, model_bin))
     net = IENetwork(model=model_xml, weights=model_bin)
 
     # ---------------------------------- 3. Load CPU extension for support specific layer ------------------------------
-    if plugin.device == "CPU":
-        supported_layers = plugin.get_supported_layers(net)
+    if "CPU" in args.device:
+        supported_layers = ie.query_network(net, "CPU")
         not_supported_layers = [l for l in net.layers.keys() if l not in supported_layers]
         if len(not_supported_layers) != 0:
             log.error("Following layers are not supported by the plugin for specified device {}:\n {}".
-                      format(plugin.device, ', '.join(not_supported_layers)))
+                      format(args.device, ', '.join(not_supported_layers)))
             log.error("Please try to specify cpu extensions library path in sample's command line parameters using -l "
                       "or --cpu_extension command line argument")
             sys.exit(1)
 
     assert len(net.inputs.keys()) == 1, "Sample supports only YOLO V3 based single input topologies"
-    assert len(net.outputs) == 3, "Sample supports only YOLO V3 based triple output topologies"
 
     # ---------------------------------------------- 4. Preparing inputs -----------------------------------------------
     log.info("Preparing inputs")
@@ -222,7 +228,7 @@ def main():
 
     # ----------------------------------------- 5. Loading model to the plugin -----------------------------------------
     log.info("Loading model to the plugin")
-    exec_net = plugin.load(network=net, num_requests=2)
+    exec_net = ie.load_network(network=net, num_requests=2, device_name=args.device)
 
     cur_request_id = 0
     next_request_id = 1
@@ -230,7 +236,9 @@ def main():
     parsing_time = 0
 
     # ----------------------------------------------- 6. Doing inference -----------------------------------------------
-    print("To close the application, press 'CTRL+C' or any key with focus on the output window")
+    log.info("Starting inference...")
+    print("To close the application, press 'CTRL+C' here or switch to the output window and press ESC key")
+    print("To switch between sync/async modes, press TAB key in the output window")
     while cap.isOpened():
         # Here is the first asynchronous point: in the Async mode, we capture frame to populate the NEXT infer request
         # in the regular mode, we capture frame to the CURRENT infer request
@@ -265,7 +273,8 @@ def main():
 
             start_time = time()
             for layer_name, out_blob in output.items():
-                layer_params = YoloV3Params(net.layers[layer_name].params, out_blob.shape[2])
+                out_blob = out_blob.reshape(net.layers[net.layers[layer_name].parents[0]].shape)
+                layer_params = YoloParams(net.layers[layer_name].params, out_blob.shape[2])
                 log.info("Layer {} parameters: ".format(layer_name))
                 layer_params.log_params()
                 objects += parse_yolo_region(out_blob, in_frame.shape[2:],
@@ -274,6 +283,7 @@ def main():
             parsing_time = time() - start_time
 
         # Filtering overlapping boxes with respect to the --iou_threshold CLI parameter
+        objects = sorted(objects, key=lambda obj : obj['confidence'], reverse=True)
         for i in range(len(objects)):
             if objects[i]['confidence'] == 0:
                 continue
@@ -333,10 +343,10 @@ def main():
 
         key = cv2.waitKey(wait_key_code)
 
-        # Tab key
+        # ESC key
         if key == 27:
             break
-        # ESC key
+        # Tab key
         if key == 9:
             exec_net.requests[cur_request_id].wait()
             is_async_mode = not is_async_mode

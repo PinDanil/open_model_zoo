@@ -10,12 +10,6 @@
 #include <gflags/gflags.h>
 #include <iostream>
 
-#ifdef _WIN32
-#include <os/windows/w_dirent.h>
-#else
-#include <dirent.h>
-#endif
-
 /// @brief message for help argument
 static const char help_message[] = "Print a usage message.";
 
@@ -25,12 +19,9 @@ static const char video_message[] = "Required. Path to a video file (specify \"c
 /// @brief message for model argument
 static const char model_message[] = "Required. Path to an .xml file with a trained model.";
 
-/// @brief message for plugin argument
-static const char plugin_message[] = "Optional. Plugin name. For example MKLDNNPlugin. If this parameter is pointed, " \
-"the demo will look for this plugin only.";
-
 /// @brief message for assigning cnn calculation to device
-static const char target_device_message[] = "Optional. Specify the target device to infer on (CPU, GPU, FPGA, HDDL or MYRIAD). " \
+static const char target_device_message[] = "Optional. Specify the target device to infer on (the list of available devices is shown below). " \
+"Default value is CPU. Use \"-d HETERO:<comma-separated_devices_list>\" format to specify HETERO plugin. " \
 "The demo will look for a suitable plugin for a specified device.";
 
 /// @brief message for performance counters
@@ -38,11 +29,11 @@ static const char performance_counter_message[] = "Optional. Enables per-layer p
 
 /// @brief message for clDNN custom kernels desc
 static const char custom_cldnn_message[] = "Required for GPU custom kernels. "\
-"Absolute path to the .xml file with the kernels descriptions.";
+"Absolute path to the .xml file with the kernel descriptions.";
 
 /// @brief message for user library argument
 static const char custom_cpu_library_message[] = "Required for CPU custom layers. " \
-"Absolute path to a shared library with the kernels implementations.";
+"Absolute path to a shared library with the kernel implementations.";
 
 /// @brief message for probability threshold argument
 static const char thresh_output_message[] = "Optional. Probability threshold for detections.";
@@ -52,6 +43,8 @@ static const char raw_output_message[] = "Optional. Inference results as raw val
 /// @brief message resizable input flag
 static const char input_resizable_message[] = "Optional. Enables resizable input with support of ROI crop & auto resize.";
 
+/// @brief Message do not show processed video
+static const char no_show_processed_video[] = "Optional. Do not show processed video.";
 
 /// \brief Define flag for showing help message <br>
 DEFINE_bool(h, false, help_message);
@@ -90,6 +83,9 @@ DEFINE_double(t, 0.5, thresh_output_message);
 /// It is an optional parameter
 DEFINE_bool(auto_resize, false, input_resizable_message);
 
+/// \brief Define a flag to disable showing processed video<br>
+/// It is an optional parameter
+DEFINE_bool(no_show, false, no_show_processed_video);
 
 /**
 * \brief This function show a help message
@@ -110,4 +106,5 @@ static void showUsage() {
     std::cout << "    -r                        " << raw_output_message << std::endl;
     std::cout << "    -t                        " << thresh_output_message << std::endl;
     std::cout << "    -auto_resize              " << input_resizable_message << std::endl;
+    std::cout << "    -no_show                  " << no_show_processed_video << std::endl;
 }
