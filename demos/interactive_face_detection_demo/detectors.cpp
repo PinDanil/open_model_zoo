@@ -57,29 +57,35 @@ FaceDetection::FaceDetection(const std::string &pathToModel,
       bb_dy_coefficient(bb_dy_coefficient), resultsFetched(false) {}
 
 // FIXME: переопределить метод
-void FaceDetection::fetchResults(cv::Mat ssd_results) {
+void FaceDetection::fetchResults(cv::Mat ssd_results, float in_width, float in_height) {
+    width = in_width;
+    height = in_height;
     results.clear();
     const float *detections = ssd_results.ptr<float>();
 
-    std::cout<<"I got data"<< std::endl;
+    const int MAX_PROPOSALS = 200;
+    const int OBJECT_SIZE   =   7;
 
-    for (int i = 0; i < maxProposalCount; i++) {
-        float image_id = detections[i * objectSize + 0];
+    for (int i = 0; i < MAX_PROPOSALS; i++) {
+        float image_id = detections[i * OBJECT_SIZE + 0];
         if (image_id < 0) {
             break;
         }
         Result r;
-        r.label = static_cast<int>(detections[i * objectSize + 1]);
-        r.confidence = detections[i * objectSize + 2];
+        r.label = static_cast<int>(detections[i * OBJECT_SIZE + 1]);
+        r.confidence = detections[i * OBJECT_SIZE + 2];
 
         if (r.confidence <= detectionThreshold && !doRawOutputMessages) {
             continue;
         }
 
-        r.location.x = static_cast<int>(detections[i * objectSize + 3] * width);
-        r.location.y = static_cast<int>(detections[i * objectSize + 4] * height);
-        r.location.width = static_cast<int>(detections[i * objectSize + 5] * width - r.location.x);
-        r.location.height = static_cast<int>(detections[i * objectSize + 6] * height - r.location.y);
+//        std::cout<<"Width "<< width <<std::endl;
+//        std::cout<<"Height "<< height <<std::endl;
+
+        r.location.x = static_cast<int>(detections[i * OBJECT_SIZE + 3] * width);
+        r.location.y = static_cast<int>(detections[i * OBJECT_SIZE + 4] * height);
+        r.location.width = static_cast<int>(detections[i * OBJECT_SIZE + 5] * width - r.location.x);
+        r.location.height = static_cast<int>(detections[i * OBJECT_SIZE + 6] * height - r.location.y);
 
         // Make square and enlarge face bounding box for more robust operation of face analytics networks
         int bb_width = r.location.width;
@@ -106,11 +112,11 @@ void FaceDetection::fetchResults(cv::Mat ssd_results) {
                       << ((r.confidence > detectionThreshold) ? " WILL BE RENDERED!" : "") << std::endl;
         }
         if (r.confidence > detectionThreshold) {
+//            std::cout<< "Pushing back Rect x: "<< r.location.x <<" y: "<< r.location.y <<std::endl;
             results.push_back(r);
         }
     }
 
-    std::cout<< "I got all faces"<<std::endl;
 }
 
 

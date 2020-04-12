@@ -28,6 +28,9 @@
 #include <samples/ocv_common.hpp>
 #include <samples/slog.hpp>
 
+#include "gapi_stuff.hpp"
+
+
 #include <opencv2/gapi.hpp>
 #include <opencv2/gapi/core.hpp>
 #include <opencv2/gapi/imgproc.hpp>
@@ -36,6 +39,7 @@
 #include <opencv2/gapi/infer/ie.hpp>
 #include <opencv2/gapi/cpu/gcpukernel.hpp>
 #include <opencv2/gapi/streaming/cap.hpp>
+
 
 #include "interactive_face_detection.hpp"
 #include "detectors.hpp"
@@ -203,7 +207,6 @@ G_API_NET(FacialLandmark, <cv::GMat(cv::GMat)>,   "facial-landmark-recoginition"
 // Emotion recognition - takes one Mat, returns another.
 G_API_NET(Emotions, <cv::GMat(cv::GMat)>, "emotions-recognition");
 
-// SSD Post-processing function - this is not a network but a kernel.
 // The kernel body is declared separately, this is just an interface.
 // This operation takes two Mats (detections and the source image),
 // and returns a vector of ROI (filtered by a default threshold).
@@ -312,7 +315,7 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             // Recognize axis–angle representation a on every face.
             // ROI-list-oriented infer<>() is used here as well.
             // Inference results are returned in form of list (GArray<>).
-            // custom::HeadPose network produce a three outputs (yaw, pitch and roll).
+            // HeadPose network produce a three outputs (yaw, pitch and roll).
             // Since there're three outputs, infer<> return three arrays (via std::tuple).
             cv::GArray<cv::GMat> y_fc;
             cv::GArray<cv::GMat> p_fc;
@@ -321,13 +324,13 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
 
             // Recognize landmarks on every face.
             // ROI-list-oriented infer<>() is used here as well.
-            // Since custom::FacialLandmark network produce a single output, only one
+            // Since FacialLandmark network produce a single output, only one
             // GArray<> is returned here.
             cv::GArray<cv::GMat> landmarks = cv::gapi::infer<FacialLandmark>(faces, in);
 
             // Recognize emotions on every face.
             // ROI-list-oriented infer<>() is used here as well.
-            // Since custom::Emotions network produce a single output, only one
+            // Since Emotions network produce a single output, only one
             // GArray<> is returned here.
             cv::GArray<cv::GMat> emotions = cv::gapi::infer<Emotions>(faces, in);
 
@@ -339,8 +342,8 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             // Now specify the computation's boundaries - our pipeline consumes
             // one images and produces five outputs.
             return cv::GComputation(cv::GIn(in),
-                                    cv::GOut(frame, detections, faces, ages, genders, y_fc, p_fc, r_fc,
-                                            landmarks, emotions));
+                                    cv::GOut(frame, detections/*faces, ages, genders, y_fc, p_fc, r_fc,
+                                            landmarks, emotions*/));
         });
 
     // Note: it might be very useful to have dimensions loaded at this point!
@@ -348,7 +351,7 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     // Execution is defined by inference backends and kernel backends we use to
     // compile the pipeline (it is a different step).
 
-    // Declare IE parameters for FaceDetection network. Note here custom::Face
+    // Declare IE parameters for FaceDetection network. Note here Face
     // is the type name we specified in GAPI_NETWORK() previously.
     // cv::gapi::ie::Params<> is a generic configuration description which is
     // specialized to every particular network we use.
@@ -396,8 +399,8 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
 //    auto out_vector = cv::gout(imgBeautif, imgShow, vctFaceConts,
 //                               vctElsConts, vctRects);
 
-    cv::Mat frame;
-    cv::Mat detections;
+//    cv::Mat out_frame;
+    cv::Mat out_detections;
     std::vector<cv::Rect> face_hub;
     std::vector<cv::Mat> out_ages;
     std::vector<cv::Mat> out_genders;
@@ -405,22 +408,88 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     std::vector<cv::Mat> out_landmarks;
     std::vector<cv::Mat> out_emotions;
     
-
-    auto out_vector = cv::gout(frame, detections, face_hub, ages, genders,
-                               y_fc, p_fc, r_fc,
-                               landmarks, emotions);
-
     stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
+
+    cv::GRunArgsP out_vector = cv::gout(frame, out_detections/*, face_hub, out_ages, out_genders,
+                               out_y_fc, out_p_fc, out_r_fc,
+                               out_landmarks, out_emotions*/);
+
+    cv::namedWindow("Detection results");
 
     stream.start();
     while (stream.running())
     {
-        stream.pull(out_vector);
-        std::cout<< "I pull out vector"<<std::endl;        
+        timer.start("total");
+
+        stream.pull(std::move(out_vector));
+
+        faceDetector.fetchResults(out_detections,
+                                  static_cast<float>(frame.cols),
+                                  static_cast<float>(frame.rows));
+        
+        auto prev_detection_results = faceDetector.results;
+        
+        //  Postprocessing
+        std::list<Face::Ptr> prev_faces;
+
+        if (!FLAGS_no_smooth) {
+            prev_faces.insert(prev_faces.begin(), faces.begin(), faces.end());
+        }
+
+        faces.clear();
+    
+        // For every detected face
+        for (size_t i = 0; i < prev_detection_results.size(); i++) {
+            auto& result = prev_detection_results[i];
+            cv::Rect rect = result.location & cv::Rect({0, 0}, frame.size());
+            
+            Face::Ptr face;
+            if (!FLAGS_no_smooth) {
+
+                face = matchFace(rect, prev_faces);
+                float intensity_mean = calcMean(frame(rect));
+                intensity_mean += 1.0;
+            
+                if ((face == nullptr) ||
+                    ((face != nullptr) && ((std::abs(intensity_mean - face->_intensity_mean) / face->_intensity_mean) > 0.07f))) {
+                    face = std::make_shared<Face>(id++, rect);
+                } else {
+                    prev_faces.remove(face);
+                }
+            
+                face->_intensity_mean = intensity_mean;
+                face->_location = rect;
+            
+            } else {
+                face = std::make_shared<Face>(id++, rect);
+            }
+
+            faces.push_back(face);            
+        }
+
+        //  Visualizing results
+        if (!FLAGS_no_show || !FLAGS_o.empty()) {
+            // std::cout<< <<std::endl;
+            std::cout<<"Got ot visual" <<std::endl;
+            out.str("");
+            out << "Total image throughput: " << std::fixed << std::setprecision(2)
+                << 1000.f / (timer["total"].getSmoothedDuration()) << " fps";
+            cv::putText(frame, out.str(), cv::Point2f(10, 45), cv::FONT_HERSHEY_TRIPLEX, 1.2,
+                        cv::Scalar(255, 0, 0), 2);
+
+            // drawing faces
+            visualizer->draw(frame, faces);
+
+            if (!FLAGS_no_show) {
+                std::cout<<"Abaut to visual frame "<<frame.cols<< ' '<<frame.rows <<std::endl;
+                cv::imshow("Detection results", frame);
+                std::cout<<"After visual" <<std::endl;
+                cv::waitKey(0);
+            }
+        }
     }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  G-API STUFF END  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
         while (true) {
             timer.start("total");
