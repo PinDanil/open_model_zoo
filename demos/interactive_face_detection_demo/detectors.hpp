@@ -53,11 +53,6 @@ struct BaseDetection {
 
     virtual ~BaseDetection();
 
-    InferenceEngine::ExecutableNetwork* operator ->();
-    virtual InferenceEngine::CNNNetwork read() = 0;
-    virtual void submitRequest();
-    virtual void wait();
-    bool enabled() const;
     void printPerformanceCounts(std::string fullDeviceName);
 };
 
@@ -90,10 +85,7 @@ struct FaceDetection : BaseDetection {
                   float bb_enlarge_coefficient, float bb_dx_coefficient,
                   float bb_dy_coefficient);
 
-    InferenceEngine::CNNNetwork read() override;
-    void submitRequest() override;
 
-    void enqueue(const cv::Mat &frame);
     void fetchResults();
 };
 
@@ -113,10 +105,6 @@ struct AgeGenderDetection : BaseDetection {
                        int maxBatch, bool isBatchDynamic, bool isAsync,
                        bool doRawOutputMessages);
 
-    InferenceEngine::CNNNetwork read() override;
-    void submitRequest() override;
-
-    void enqueue(const cv::Mat &face);
     Result operator[] (int idx) const;
 };
 
@@ -139,10 +127,6 @@ struct HeadPoseDetection : BaseDetection {
                       int maxBatch, bool isBatchDynamic, bool isAsync,
                       bool doRawOutputMessages);
 
-    InferenceEngine::CNNNetwork read() override;
-    void submitRequest() override;
-
-    void enqueue(const cv::Mat &face);
     Results operator[] (int idx) const;
 };
 
@@ -156,10 +140,6 @@ struct EmotionsDetection : BaseDetection {
                       int maxBatch, bool isBatchDynamic, bool isAsync,
                       bool doRawOutputMessages);
 
-    InferenceEngine::CNNNetwork read() override;
-    void submitRequest() override;
-
-    void enqueue(const cv::Mat &face);
     std::map<std::string, float> operator[] (int idx) const;
 
     const std::vector<std::string> emotionsVec = {"neutral", "happy", "sad", "surprise", "anger"};
@@ -177,19 +157,7 @@ struct FacialLandmarksDetection : BaseDetection {
                              int maxBatch, bool isBatchDynamic, bool isAsync,
                              bool doRawOutputMessages);
 
-    InferenceEngine::CNNNetwork read() override;
-    void submitRequest() override;
-
-    void enqueue(const cv::Mat &face);
     std::vector<float> operator[] (int idx) const;
-};
-
-struct Load {
-    BaseDetection& detector;
-
-    explicit Load(BaseDetection& detector);
-
-    void into(InferenceEngine::Core & ie, const std::string & deviceName, bool enable_dynamic_batch = false) const;
 };
 
 class CallStat {

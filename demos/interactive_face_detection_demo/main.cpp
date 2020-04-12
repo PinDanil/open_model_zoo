@@ -82,30 +82,16 @@ int main(int argc, char *argv[]) {
             return 0;
         }
 
-        slog::info << "Reading input" << slog::endl;
-        cv::VideoCapture cap;
-        if (!(FLAGS_i == "cam" ? cap.open(0) : cap.open(FLAGS_i))) {
-            throw std::logic_error("Cannot open input file or camera: " + FLAGS_i);
-        }
-
         Timer timer;
         // read input (video) frame
+
         cv::Mat frame;
-        if (!cap.read(frame)) {
-            throw std::logic_error("Failed to get frame from cv::VideoCapture");
-        }
 
         const size_t width  = static_cast<size_t>(frame.cols);
         const size_t height = static_cast<size_t>(frame.rows);
 
-        cv::VideoWriter videoWriter;
-        if (!FLAGS_o.empty()) {
-            videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(width, height));
-        }
         // ---------------------------------------------------------------------------------------------------
         // --------------------------- 1. Loading Inference Engine -----------------------------
-
-        Core ie;
 
         std::set<std::string> loadedDevices;
         std::vector<std::pair<std::string, std::string>> cmdOptions = {
@@ -122,92 +108,47 @@ int main(int argc, char *argv[]) {
         EmotionsDetection emotionsDetector(FLAGS_m_em, FLAGS_d_em, FLAGS_n_em, FLAGS_dyn_em, FLAGS_async, FLAGS_r);
         FacialLandmarksDetection facialLandmarksDetector(FLAGS_m_lm, FLAGS_d_lm, FLAGS_n_lm, FLAGS_dyn_lm, FLAGS_async, FLAGS_r);
 
-        for (auto && option : cmdOptions) {
-            auto deviceName = option.first;
-            auto networkName = option.second;
-
-            if (deviceName.empty() || networkName.empty()) {
-                continue;
-            }
-
-            if (loadedDevices.find(deviceName) != loadedDevices.end()) {
-                continue;
-            }
-            slog::info << "Loading device " << deviceName << slog::endl;
-            std::cout << ie.GetVersions(deviceName) << std::endl;
-
-            /** Loading extensions for the CPU device **/
-            if ((deviceName.find("CPU") != std::string::npos)) {
-#ifdef WITH_EXTENSIONS
-                ie.AddExtension(std::make_shared<Extensions::Cpu::CpuExtensions>(), "CPU");
-#endif
-
-                if (!FLAGS_l.empty()) {
-                    // CPU(MKLDNN) extensions are loaded as a shared library and passed as a pointer to base extension
-                    auto extension_ptr = make_so_pointer<IExtension>(FLAGS_l);
-                    ie.AddExtension(extension_ptr, "CPU");
-                    slog::info << "CPU Extension loaded: " << FLAGS_l << slog::endl;
-                }
-            } else if (!FLAGS_c.empty()) {
-                // Loading extensions for GPU
-                ie.SetConfig({{PluginConfigParams::KEY_CONFIG_FILE, FLAGS_c}}, "GPU");
-            }
-
-            loadedDevices.insert(deviceName);
-        }
-
         /** Per-layer metrics **/
-        if (FLAGS_pc) {
-            ie.SetConfig({{PluginConfigParams::KEY_PERF_COUNT, PluginConfigParams::YES}});
-        }
+
         // ---------------------------------------------------------------------------------------------------
 
         // --------------------------- 2. Reading IR models and loading them to plugins ----------------------
         // Disable dynamic batching for face detector as it processes one image at a time
-        Load(faceDetector).into(ie, FLAGS_d, false);
-        Load(ageGenderDetector).into(ie, FLAGS_d_ag, FLAGS_dyn_ag);
-        Load(headPoseDetector).into(ie, FLAGS_d_hp, FLAGS_dyn_hp);
-        Load(emotionsDetector).into(ie, FLAGS_d_em, FLAGS_dyn_em);
-        Load(facialLandmarksDetector).into(ie, FLAGS_d_lm, FLAGS_dyn_lm);
+
         // ----------------------------------------------------------------------------------------------------
 
         // --------------------------- 3. Doing inference -----------------------------------------------------
         // Starting inference & calculating performance
         slog::info << "Start inference " << slog::endl;
 
-        bool isFaceAnalyticsEnabled = ageGenderDetector.enabled() || headPoseDetector.enabled() ||
-                                      emotionsDetector.enabled() || facialLandmarksDetector.enabled();
+        // bool isFaceAnalyticsEnabled = ageGenderDetector.enabled() || headPoseDetector.enabled() ||
+        //                               emotionsDetector.enabled() || facialLandmarksDetector.enabled();
 
         std::ostringstream out;
         size_t framesCounter = 0;
-        bool frameReadStatus;
+//        bool frameReadStatus;
         bool isLastFrame;
-        int delay = 1;
-        double msrate = -1;
+//        int delay = 1;
+//        double msrate = -1;
         cv::Mat prev_frame, next_frame;
         std::list<Face::Ptr> faces;
         size_t id = 0;
 
         if (FLAGS_fps > 0) {
-            msrate = 1000.f / FLAGS_fps;
+//            msrate = 1000.f / FLAGS_fps;
         }
 
         Visualizer::Ptr visualizer;
         if (!FLAGS_no_show || !FLAGS_o.empty()) {
             visualizer = std::make_shared<Visualizer>(cv::Size(width, height));
-            if (!FLAGS_no_show_emotion_bar && emotionsDetector.enabled()) {
+            if (!FLAGS_no_show_emotion_bar /*&& emotionsDetector.enabled()*/) {
                 visualizer->enableEmotionBar(emotionsDetector.emotionsVec);
             }
         }
 
         // Detecting all faces on the first frame and reading the next one
-        faceDetector.enqueue(frame);
-        faceDetector.submitRequest();
-
-        prev_frame = frame.clone();
 
         // Reading the next frame
-        frameReadStatus = cap.read(frame);
 
         std::cout << "To close the application, press 'CTRL+C' here";
         if (!FLAGS_no_show) {
@@ -218,56 +159,55 @@ int main(int argc, char *argv[]) {
         while (true) {
             timer.start("total");
             framesCounter++;
-            isLastFrame = !frameReadStatus;
 
             // Retrieving face detection results for the previous frame
-            faceDetector.wait();
-            faceDetector.fetchResults();
+            // faceDetector.wait();
+            // faceDetector.fetchResults();
             auto prev_detection_results = faceDetector.results;
 
             // No valid frame to infer if previous frame is the last
             if (!isLastFrame) {
-                faceDetector.enqueue(frame);
-                faceDetector.submitRequest();
+                // faceDetector.enqueue(frame);
+                // faceDetector.submitRequest();
             }
 
             // Filling inputs of face analytics networks
             for (auto &&face : prev_detection_results) {
-                if (isFaceAnalyticsEnabled) {
+                if (/*isFaceAnalyticsEnabled*/ true) {
                     auto clippedRect = face.location & cv::Rect(0, 0, width, height);
                     cv::Mat face = prev_frame(clippedRect);
-                    ageGenderDetector.enqueue(face);
-                    headPoseDetector.enqueue(face);
-                    emotionsDetector.enqueue(face);
-                    facialLandmarksDetector.enqueue(face);
+                    // ageGenderDetector.enqueue(face);
+                    // headPoseDetector.enqueue(face);
+                    // emotionsDetector.enqueue(face);
+                    // facialLandmarksDetector.enqueue(face);
                 }
             }
 
             // Running Age/Gender Recognition, Head Pose Estimation, Emotions Recognition, and Facial Landmarks Estimation networks simultaneously
-            if (isFaceAnalyticsEnabled) {
-                ageGenderDetector.submitRequest();
-                headPoseDetector.submitRequest();
-                emotionsDetector.submitRequest();
-                facialLandmarksDetector.submitRequest();
+            if (/*isFaceAnalyticsEnabled*/ true) {
+                // ageGenderDetector.submitRequest();
+                // headPoseDetector.submitRequest();
+                // emotionsDetector.submitRequest();
+                // facialLandmarksDetector.submitRequest();
             }
 
             // Reading the next frame if the current one is not the last
-            if (!isLastFrame) {
-                frameReadStatus = cap.read(next_frame);
-                if (FLAGS_loop_video && !frameReadStatus) {
-                    if (!(FLAGS_i == "cam" ? cap.open(0) : cap.open(FLAGS_i))) {
-                        throw std::logic_error("Cannot open input file or camera: " + FLAGS_i);
-                    }
-                    frameReadStatus = cap.read(next_frame);
-                }
-            }
+            // if (!isLastFrame) {
+            //     frameReadStatus = cap.read(next_frame);
+            //     if (FLAGS_loop_video && !frameReadStatus) {
+            //         if (!(FLAGS_i == "cam" ? cap.open(0) : cap.open(FLAGS_i))) {
+            //             throw std::logic_error("Cannot open input file or camera: " + FLAGS_i);
+            //         }
+            //         frameReadStatus = cap.read(next_frame);
+            //     }
+            // }
 
-            if (isFaceAnalyticsEnabled) {
-                ageGenderDetector.wait();
-                headPoseDetector.wait();
-                emotionsDetector.wait();
-                facialLandmarksDetector.wait();
-            }
+            // if (isFaceAnalyticsEnabled) {
+            //     ageGenderDetector.wait();
+            //     headPoseDetector.wait();
+            //     emotionsDetector.wait();
+            //     facialLandmarksDetector.wait();
+            // }
 
             //  Postprocessing
             std::list<Face::Ptr> prev_faces;
@@ -301,7 +241,7 @@ int main(int argc, char *argv[]) {
                     face = std::make_shared<Face>(id++, rect);
                 }
 
-                face->ageGenderEnable((ageGenderDetector.enabled() &&
+                face->ageGenderEnable((/*ageGenderDetector.enabled() &&*/
                                        i < ageGenderDetector.maxBatch));
                 if (face->isAgeGenderEnabled()) {
                     AgeGenderDetection::Result ageGenderResult = ageGenderDetector[i];
@@ -309,19 +249,19 @@ int main(int argc, char *argv[]) {
                     face->updateAge(ageGenderResult.age);
                 }
 
-                face->emotionsEnable((emotionsDetector.enabled() &&
+                face->emotionsEnable((/*emotionsDetector.enabled() &&*/
                                       i < emotionsDetector.maxBatch));
                 if (face->isEmotionsEnabled()) {
                     face->updateEmotions(emotionsDetector[i]);
                 }
 
-                face->headPoseEnable((headPoseDetector.enabled() &&
+                face->headPoseEnable((/*headPoseDetector.enabled() &&*/
                                       i < headPoseDetector.maxBatch));
                 if (face->isHeadPoseEnabled()) {
                     face->updateHeadPose(headPoseDetector[i]);
                 }
 
-                face->landmarksEnable((facialLandmarksDetector.enabled() &&
+                face->landmarksEnable((/*facialLandmarksDetector.enabled() &&*/
                                        i < facialLandmarksDetector.maxBatch));
                 if (face->isLandmarksEnabled()) {
                     face->updateLandmarks(facialLandmarksDetector[i]);
@@ -346,9 +286,9 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            if (!FLAGS_o.empty()) {
-                videoWriter.write(prev_frame);
-            }
+            // if (!FLAGS_o.empty()) {
+            //     videoWriter.write(prev_frame);
+            // }
 
             prev_frame = frame;
             frame = next_frame;
@@ -357,19 +297,19 @@ int main(int argc, char *argv[]) {
             timer.finish("total");
 
             if (FLAGS_fps > 0) {
-                delay = std::max(1, static_cast<int>(msrate - timer["total"].getLastCallDuration()));
+//                delay = std::max(1, static_cast<int>(msrate - timer["total"].getLastCallDuration()));
             }
 
-            // End of file (or a single frame file like an image). The last frame is displayed to let you check what is shown
-            if (isLastFrame) {
-                if (!FLAGS_no_wait) {
-                    std::cout << "No more frames to process!" << std::endl;
-                    cv::waitKey(0);
-                }
-                break;
-            } else if (!FLAGS_no_show && -1 != cv::waitKey(delay)) {
-                break;
-            }
+            // // End of file (or a single frame file like an image). The last frame is displayed to let you check what is shown
+            // if (isLastFrame) {
+            //     if (!FLAGS_no_wait) {
+            //         std::cout << "No more frames to process!" << std::endl;
+            //         cv::waitKey(0);
+            //     }
+            //     break;
+            // } else if (!FLAGS_no_show && -1 != cv::waitKey(delay)) {
+            //     break;
+            // }
         }
 
         slog::info << "Number of processed frames: " << framesCounter << slog::endl;
@@ -377,20 +317,20 @@ int main(int argc, char *argv[]) {
 
         // Showing performance results
         if (FLAGS_pc) {
-            faceDetector.printPerformanceCounts(getFullDeviceName(ie, FLAGS_d));
-            ageGenderDetector.printPerformanceCounts(getFullDeviceName(ie, FLAGS_d_ag));
-            headPoseDetector.printPerformanceCounts(getFullDeviceName(ie, FLAGS_d_hp));
-            emotionsDetector.printPerformanceCounts(getFullDeviceName(ie, FLAGS_d_em));
-            facialLandmarksDetector.printPerformanceCounts(getFullDeviceName(ie, FLAGS_d_lm));
+            // faceDetector.printPerformanceCounts(getFullDeviceName(ie, FLAGS_d));
+            // ageGenderDetector.printPerformanceCounts(getFullDeviceName(ie, FLAGS_d_ag));
+            // headPoseDetector.printPerformanceCounts(getFullDeviceName(ie, FLAGS_d_hp));
+            // emotionsDetector.printPerformanceCounts(getFullDeviceName(ie, FLAGS_d_em));
+            // facialLandmarksDetector.printPerformanceCounts(getFullDeviceName(ie, FLAGS_d_lm));
         }
         // ---------------------------------------------------------------------------------------------------
 
         if (!FLAGS_o.empty()) {
-            videoWriter.release();
+            // videoWriter.release();
         }
 
         // release input video stream
-        cap.release();
+        // cap.release();
 
         // close windows
         cv::destroyAllWindows();
