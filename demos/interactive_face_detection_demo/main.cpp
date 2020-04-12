@@ -28,6 +28,15 @@
 #include <samples/ocv_common.hpp>
 #include <samples/slog.hpp>
 
+#include <opencv2/gapi.hpp>
+#include <opencv2/gapi/core.hpp>
+#include <opencv2/gapi/imgproc.hpp>
+#include <opencv2/gapi/fluid/core.hpp>
+#include <opencv2/gapi/infer.hpp>
+#include <opencv2/gapi/infer/ie.hpp>
+#include <opencv2/gapi/cpu/gcpukernel.hpp>
+#include <opencv2/gapi/streaming/cap.hpp>
+
 #include "interactive_face_detection.hpp"
 #include "detectors.hpp"
 #include "face.hpp"
@@ -155,6 +164,268 @@ int main(int argc, char *argv[]) {
             std::cout << " or switch to the output window and press any key";
         }
         std::cout << std::endl;
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ G-API STUFF START ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+// Describe networks we use in our program.
+// In G-API, topologies act like "operations". Here we define our
+// topologies as operations which have inputs and outputs.
+
+// Every network requires three parameters to define:
+// 1) Network's TYPE name - this TYPE is then used as a template
+//    parameter to generic functions like cv::gapi::infer<>(),
+//    and is used to define network's configuration (per-backend).
+// 2) Network's SIGNATURE - a std::function<>-like record which defines
+//    networks' input and output parameters (its API)
+// 3) Network's IDENTIFIER - a string defining what the network is.
+//    Must be unique within the pipeline.
+
+// Note: these definitions are neutral to _how_ the networks are
+// executed. The _how_ is defined at graph compilation stage (via parameters),
+// not on the graph construction stage.
+
+// Face detector: takes one Mat, returns another Mat
+G_API_NET(Faces, <cv::GMat(cv::GMat)>, "face-detector");
+
+// Age/Gender recognition - takes one Mat, returns two:
+// one for Age and one for Gender. In G-API, multiple-return-value operations
+// are defined using std::tuple<>.
+using AGInfo = std::tuple<cv::GMat, cv::GMat>;
+G_API_NET(AgeGender, <AGInfo(cv::GMat)>,   "age-gender-recoginition");
+
+// Head pose recognition - takes one Mat, returns another.
+using HPInfo = std::tuple<cv::GMat, cv::GMat, cv::GMat>;
+G_API_NET(HeadPose, <HPInfo(cv::GMat)>,   "head-pose-recoginition");
+
+// Facial landmark recognition - takes one Mat, returns another.
+G_API_NET(FacialLandmark, <cv::GMat(cv::GMat)>,   "facial-landmark-recoginition");
+
+// Emotion recognition - takes one Mat, returns another.
+G_API_NET(Emotions, <cv::GMat(cv::GMat)>, "emotions-recognition");
+
+// SSD Post-processing function - this is not a network but a kernel.
+// The kernel body is declared separately, this is just an interface.
+// This operation takes two Mats (detections and the source image),
+// and returns a vector of ROI (filtered by a default threshold).
+// Threshold (or a class to select) may become a parameter, but since
+// this kernel is custom, it doesn't make a lot of sense.
+G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.fd_postproc") {
+    static cv::GArrayDesc outMeta(const cv::GMatDesc &, const cv::GMatDesc &) {
+        // This function is required for G-API engine to figure out
+        // what the output format is, given the input parameters.
+        // Since the output is an array (with a specific type),
+        // there's nothing to describe.
+        return cv::empty_array_desc();
+    }
+};
+
+GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
+    static void run(const cv::Mat &in_ssd_result,
+                    const cv::Mat &in_frame,
+                    std::vector<cv::Rect> &out_faces) {
+        const int MAX_PROPOSALS = 200;
+        const int OBJECT_SIZE   =   7;
+        const cv::Size upscale = in_frame.size();
+        const cv::Rect surface({0,0}, upscale);
+
+        out_faces.clear();
+
+        const float *data = in_ssd_result.ptr<float>();
+        for (int i = 0; i < MAX_PROPOSALS; i++) {
+            const float image_id   = data[i * OBJECT_SIZE + 0]; // batch id
+            const float confidence = data[i * OBJECT_SIZE + 2];
+            const float rc_left    = data[i * OBJECT_SIZE + 3];
+            const float rc_top     = data[i * OBJECT_SIZE + 4];
+            const float rc_right   = data[i * OBJECT_SIZE + 5];
+            const float rc_bottom  = data[i * OBJECT_SIZE + 6];
+
+            if (image_id < 0.f) {  // indicates end of detections
+                break;
+            }
+            if (confidence < 0.5f) { // fixme: hard-coded snapshot
+                continue;
+            }
+
+            cv::Rect rc;
+            rc.x      = static_cast<int>(rc_left   * upscale.width);
+            rc.y      = static_cast<int>(rc_top    * upscale.height);
+            rc.width  = static_cast<int>(rc_right  * upscale.width)  - rc.x;
+            rc.height = static_cast<int>(rc_bottom * upscale.height) - rc.y;
+
+            // Make square and enlarge face bounding box for more robust operation of face analytics networks
+            int bb_width = rc.width;
+            int bb_height = rc.height;
+
+            int bb_center_x = rc.x + bb_width / 2;
+            int bb_center_y = rc.y + bb_height / 2;
+
+            int max_of_sizes = std::max(bb_width, bb_height);
+            
+            //bb_enlarge_coefficient, dx_coef, dy_coef is a omz flags
+            //usualy it's 1.2, 1.0 and 1.0
+            float bb_enlarge_coefficient = 1.2;
+            float bb_dx_coefficient = 1.0;
+            float bb_dy_coefficient = 1.0;
+            int bb_new_width = static_cast<int>(bb_enlarge_coefficient * max_of_sizes);
+            int bb_new_height = static_cast<int>(bb_enlarge_coefficient * max_of_sizes);
+
+            rc.x = bb_center_x - static_cast<int>(std::floor(bb_dx_coefficient * bb_new_width / 2));
+            rc.y = bb_center_y - static_cast<int>(std::floor(bb_dy_coefficient * bb_new_height / 2));
+
+            rc.width = bb_new_width;
+            rc.height = bb_new_height;
+
+            out_faces.push_back(rc & surface);
+
+
+        }
+    }
+};
+
+    cv::GComputation pipeline([]() {
+            // Declare an empty GMat - the beginning of the pipeline.
+            cv::GMat in;
+
+            // Run face detection on the input frame. Result is a single GMat,
+            // internally representing an 1x1x200x7 SSD output.
+            // This is a single-patch version of infer:
+            // - Inference is running on the whole input image;
+            // - Image is converted and resized to the network's expected format
+            //   automatically.
+            cv::GMat detections = cv::gapi::infer<Faces>(in);
+
+            // Parse SSD output to a list of ROI (rectangles) using
+            // a custom kernel. Note: parsing SSD may become a "standard" kernel.
+            cv::GArray<cv::Rect> faces = PostProc::on(detections, in);
+
+            // Now run Age/Gender model on every detected face. This model has two
+            // outputs (for age and gender respectively).
+            // A special ROI-list-oriented form of infer<>() is used here:
+            // - First input argument is the list of rectangles to process,
+            // - Second one is the image where to take ROI from;
+            // - Crop/Resize/Layout conversion happens automatically for every image patch
+            //   from the list
+            // - Inference results are also returned in form of list (GArray<>)
+            // - Since there're two outputs, infer<> return two arrays (via std::tuple).
+            cv::GArray<cv::GMat> ages;
+            cv::GArray<cv::GMat> genders;
+            std::tie(ages, genders) = cv::gapi::infer<AgeGender>(faces, in);
+
+            // Recognize axis–angle representation a on every face.
+            // ROI-list-oriented infer<>() is used here as well.
+            // Inference results are returned in form of list (GArray<>).
+            // custom::HeadPose network produce a three outputs (yaw, pitch and roll).
+            // Since there're three outputs, infer<> return three arrays (via std::tuple).
+            cv::GArray<cv::GMat> y_fc;
+            cv::GArray<cv::GMat> p_fc;
+            cv::GArray<cv::GMat> r_fc;
+            std::tie(y_fc, p_fc, r_fc) = cv::gapi::infer<HeadPose>(faces, in);
+
+            // Recognize landmarks on every face.
+            // ROI-list-oriented infer<>() is used here as well.
+            // Since custom::FacialLandmark network produce a single output, only one
+            // GArray<> is returned here.
+            cv::GArray<cv::GMat> landmarks = cv::gapi::infer<FacialLandmark>(faces, in);
+
+            // Recognize emotions on every face.
+            // ROI-list-oriented infer<>() is used here as well.
+            // Since custom::Emotions network produce a single output, only one
+            // GArray<> is returned here.
+            cv::GArray<cv::GMat> emotions = cv::gapi::infer<Emotions>(faces, in);
+
+            // Return the decoded frame as a result as well.
+            // Input matrix can't be specified as output one, so use copy() here
+            // (this copy will be optimized out in the future).
+            cv::GMat frame = cv::gapi::copy(in);
+
+            // Now specify the computation's boundaries - our pipeline consumes
+            // one images and produces five outputs.
+            return cv::GComputation(cv::GIn(in),
+                                    cv::GOut(frame, faces, ages, genders, y_fc, p_fc, r_fc,
+                                            landmarks, emotions));
+        });
+
+    // Note: it might be very useful to have dimensions loaded at this point!
+    // After our computation is defined, specify how it should be executed.
+    // Execution is defined by inference backends and kernel backends we use to
+    // compile the pipeline (it is a different step).
+
+    // Declare IE parameters for FaceDetection network. Note here custom::Face
+    // is the type name we specified in GAPI_NETWORK() previously.
+    // cv::gapi::ie::Params<> is a generic configuration description which is
+    // specialized to every particular network we use.
+    //
+    // OpenCV DNN backend will have its own parmater structure with settings
+    // relevant to OpenCV DNN module. Same applies to other possible inference
+    // backends, like cuDNN, etc (:-))
+    auto det_net = cv::gapi::ie::Params<Faces> {
+        FLAGS_m,   // read cmd args: path to topology IR
+        FLAGS_w,   // read cmd args: path to weights
+        FLAGS_d,   // read cmd args: device specifier
+    };
+
+    auto age_net = cv::gapi::ie::Params<AgeGender> {
+        FLAGS_m_ag,   // read cmd args: path to topology IR
+        FLAGS_w_ag,   // read cmd args: path to weights
+        FLAGS_d_ag,   // read cmd args: device specifier
+    }.cfgOutputLayers({ "age_conv3", "prob" });
+
+    auto hp_net = cv::gapi::ie::Params<HeadPose> {
+        FLAGS_m_hp,   // read cmd args: path to topology IR
+        FLAGS_w_hp,   // read cmd args: path to weights
+        FLAGS_d_hp,   // read cmd args: device specifier
+    }.cfgOutputLayers({ "angle_y_fc", "angle_p_fc", "angle_r_fc" });
+
+    auto lm_net = cv::gapi::ie::Params<FacialLandmark> {
+        FLAGS_m_lm,   // read cmd args: path to topology IR
+        FLAGS_w_lm,   // read cmd args: path to weights
+        FLAGS_d_lm,   // read cmd args: device specifier
+    };
+
+    auto emo_net = cv::gapi::ie::Params<Emotions> {
+        FLAGS_m_em,   // read cmd args: path to topology IR
+        FLAGS_w_em,   // read cmd args: path to weights
+        FLAGS_d_em,   // read cmd args: device specifier
+    };
+
+    // Form a kernel package (with a single OpenCV-based implementation of our
+    // post-processing) and a network package (holding our three networks).x
+    auto kernels = cv::gapi::kernels<OCVPostProc>();
+    auto networks = cv::gapi::networks(det_net, age_net, hp_net, lm_net, emo_net);
+
+    cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
+
+//    auto out_vector = cv::gout(imgBeautif, imgShow, vctFaceConts,
+//                               vctElsConts, vctRects);
+
+    stream.start();
+    while (stream.running())
+    {
+        // if (!stream.try_pull(std::move(out_vector)))
+        // {
+        //     // Use a try_pull() to obtain data.
+        //     // If there's no data, let UI refresh (and handle keypress)
+        //     if (cv::waitKey(1) >= 0) break;
+        //     else continue;
+        // }
+        // frames++;
+        // // Drawing face boxes and landmarks if necessary:
+        // if (flgLandmarks == true)
+        // {
+        //     cv::polylines(imgShow, vctFaceConts, config::kClosedLine,
+        //                   config::kClrYellow);
+        //     cv::polylines(imgShow, vctElsConts, config::kClosedLine,
+        //                   config::kClrYellow);
+        // }
+        // if (flgBoxes == true)
+        //     for (auto rect : vctRects)
+        //         cv::rectangle(imgShow, rect, config::kClrGreen);
+        // cv::imshow(config::kWinInput,              imgShow);
+        // cv::imshow(config::kWinFaceBeautification, imgBeautif);
+    }
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  G-API STUFF END  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
         while (true) {
             timer.start("total");

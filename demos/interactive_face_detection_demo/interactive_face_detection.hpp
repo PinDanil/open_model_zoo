@@ -161,6 +161,28 @@ DEFINE_string(m_em, "", emotions_model_message);
 /// It is an optional parameter
 DEFINE_string(m_lm, "", facial_landmarks_model_message);
 
+
+/// \brief Define parameter for Face Detection model file<br>
+/// It is a required parameter
+DEFINE_string(w, "", face_detection_model_message);
+
+/// \brief Define parameter for Age Gender Recognition model file<br>
+/// It is a optional parameter
+DEFINE_string(w_ag, "", age_gender_model_message);
+
+/// \brief Define parameter for Head Pose Estimation model file<br>
+/// It is a optional parameter
+DEFINE_string(w_hp, "", head_pose_model_message);
+
+/// \brief Define parameter for Emotions Recognition model file<br>
+/// It is a optional parameter
+DEFINE_string(w_em, "", emotions_model_message);
+
+/// \brief Define parameter for Facial Landmarks Estimation model file<br>
+/// It is an optional parameter
+DEFINE_string(w_lm, "", facial_landmarks_model_message);
+
+
 /// \brief target device for Face Detection network<br>
 DEFINE_string(d, "CPU", target_device_message);
 
