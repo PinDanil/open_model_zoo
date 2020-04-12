@@ -481,12 +481,13 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             visualizer->draw(frame, faces);
 
             if (!FLAGS_no_show) {
-                std::cout<<"Abaut to visual frame "<<frame.cols<< ' '<<frame.rows <<std::endl;
+                // std::cout<<"Abaut to visual frame "<<frame.cols<< ' '<<frame.rows <<std::endl;
                 cv::imshow("Detection results", frame);
-                std::cout<<"After visual" <<std::endl;
-                cv::waitKey(0);
+                // std::cout<<"After visual" <<std::endl;
             }
         }
+        if (cv::waitKey(1) >= 0) break;
+        else continue;
     }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  G-API STUFF END  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
