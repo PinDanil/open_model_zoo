@@ -136,7 +136,7 @@ int main(int argc, char *argv[]) {
         std::ostringstream out;
         size_t framesCounter = 0;
 //        bool frameReadStatus;
-        bool isLastFrame;
+//        bool isLastFrame;
 //        int delay = 1;
 //        double msrate = -1;
         cv::Mat prev_frame, next_frame;
@@ -276,8 +276,6 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             rc.height = bb_new_height;
 
             out_faces.push_back(rc & surface);
-
-
         }
     }
 };
@@ -341,7 +339,7 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             // Now specify the computation's boundaries - our pipeline consumes
             // one images and produces five outputs.
             return cv::GComputation(cv::GIn(in),
-                                    cv::GOut(frame, faces, ages, genders, y_fc, p_fc, r_fc,
+                                    cv::GOut(frame, detections, faces, ages, genders, y_fc, p_fc, r_fc,
                                             landmarks, emotions));
         });
 
@@ -398,30 +396,27 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
 //    auto out_vector = cv::gout(imgBeautif, imgShow, vctFaceConts,
 //                               vctElsConts, vctRects);
 
+    cv::Mat frame;
+    cv::Mat detections;
+    std::vector<cv::Rect> face_hub;
+    std::vector<cv::Mat> out_ages;
+    std::vector<cv::Mat> out_genders;
+    std::vector<cv::Mat> out_y_fc, out_p_fc, out_r_fc; 
+    std::vector<cv::Mat> out_landmarks;
+    std::vector<cv::Mat> out_emotions;
+    
+
+    auto out_vector = cv::gout(frame, detections, face_hub, ages, genders,
+                               y_fc, p_fc, r_fc,
+                               landmarks, emotions);
+
+    stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
+
     stream.start();
     while (stream.running())
     {
-        // if (!stream.try_pull(std::move(out_vector)))
-        // {
-        //     // Use a try_pull() to obtain data.
-        //     // If there's no data, let UI refresh (and handle keypress)
-        //     if (cv::waitKey(1) >= 0) break;
-        //     else continue;
-        // }
-        // frames++;
-        // // Drawing face boxes and landmarks if necessary:
-        // if (flgLandmarks == true)
-        // {
-        //     cv::polylines(imgShow, vctFaceConts, config::kClosedLine,
-        //                   config::kClrYellow);
-        //     cv::polylines(imgShow, vctElsConts, config::kClosedLine,
-        //                   config::kClrYellow);
-        // }
-        // if (flgBoxes == true)
-        //     for (auto rect : vctRects)
-        //         cv::rectangle(imgShow, rect, config::kClrGreen);
-        // cv::imshow(config::kWinInput,              imgShow);
-        // cv::imshow(config::kWinFaceBeautification, imgBeautif);
+        stream.pull(out_vector);
+        std::cout<< "I pull out vector"<<std::endl;        
     }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  G-API STUFF END  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -435,51 +430,6 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             // faceDetector.wait();
             // faceDetector.fetchResults();
             auto prev_detection_results = faceDetector.results;
-
-            // No valid frame to infer if previous frame is the last
-            if (!isLastFrame) {
-                // faceDetector.enqueue(frame);
-                // faceDetector.submitRequest();
-            }
-
-            // Filling inputs of face analytics networks
-            for (auto &&face : prev_detection_results) {
-                if (/*isFaceAnalyticsEnabled*/ true) {
-                    auto clippedRect = face.location & cv::Rect(0, 0, width, height);
-                    cv::Mat face = prev_frame(clippedRect);
-                    // ageGenderDetector.enqueue(face);
-                    // headPoseDetector.enqueue(face);
-                    // emotionsDetector.enqueue(face);
-                    // facialLandmarksDetector.enqueue(face);
-                }
-            }
-
-            // Running Age/Gender Recognition, Head Pose Estimation, Emotions Recognition, and Facial Landmarks Estimation networks simultaneously
-            if (/*isFaceAnalyticsEnabled*/ true) {
-                // ageGenderDetector.submitRequest();
-                // headPoseDetector.submitRequest();
-                // emotionsDetector.submitRequest();
-                // facialLandmarksDetector.submitRequest();
-            }
-
-            // Reading the next frame if the current one is not the last
-            // if (!isLastFrame) {
-            //     frameReadStatus = cap.read(next_frame);
-            //     if (FLAGS_loop_video && !frameReadStatus) {
-            //         if (!(FLAGS_i == "cam" ? cap.open(0) : cap.open(FLAGS_i))) {
-            //             throw std::logic_error("Cannot open input file or camera: " + FLAGS_i);
-            //         }
-            //         frameReadStatus = cap.read(next_frame);
-            //     }
-            // }
-
-            // if (isFaceAnalyticsEnabled) {
-            //     ageGenderDetector.wait();
-            //     headPoseDetector.wait();
-            //     emotionsDetector.wait();
-            //     facialLandmarksDetector.wait();
-            // }
-
             //  Postprocessing
             std::list<Face::Ptr> prev_faces;
 

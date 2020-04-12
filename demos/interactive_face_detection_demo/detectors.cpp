@@ -57,12 +57,11 @@ FaceDetection::FaceDetection(const std::string &pathToModel,
       bb_dy_coefficient(bb_dy_coefficient), resultsFetched(false) {}
 
 // FIXME: переопределить метод
-void FaceDetection::fetchResults() {
-    // if (!enabled()) return;
-    // results.clear();
-    // if (resultsFetched) return;
-    // resultsFetched = true;
-    const float *detections = request->GetBlob(output)->buffer().as<float *>();
+void FaceDetection::fetchResults(cv::Mat ssd_results) {
+    results.clear();
+    const float *detections = ssd_results.ptr<float>();
+
+    std::cout<<"I got data"<< std::endl;
 
     for (int i = 0; i < maxProposalCount; i++) {
         float image_id = detections[i * objectSize + 0];
@@ -110,6 +109,8 @@ void FaceDetection::fetchResults() {
             results.push_back(r);
         }
     }
+
+    std::cout<< "I got all faces"<<std::endl;
 }
 
 
@@ -245,81 +246,6 @@ std::vector<float> FacialLandmarksDetection::operator[] (int idx) const {
     return normedLandmarks;
 }
 
-// CNNNetwork FacialLandmarksDetection::read() {
-//     slog::info << "Loading network files for Facial Landmarks Estimation" << slog::endl;
-//     CNNNetReader netReader;
-//     // Read network model
-//     netReader.ReadNetwork(pathToModel);
-//     // Set maximum batch size
-//     netReader.getNetwork().setBatchSize(maxBatch);
-//     slog::info << "Batch size is set to  " << netReader.getNetwork().getBatchSize() << " for Facial Landmarks Estimation network" << slog::endl;
-//     // Extract model name and load its weights
-//     std::string binFileName = fileNameNoExt(pathToModel) + ".bin";
-//     netReader.ReadWeights(binFileName);
-
-//     // ---------------------------Check inputs -------------------------------------------------------------
-//     slog::info << "Checking Facial Landmarks Estimation network inputs" << slog::endl;
-//     InputsDataMap inputInfo(netReader.getNetwork().getInputsInfo());
-//     if (inputInfo.size() != 1) {
-//         throw std::logic_error("Facial Landmarks Estimation network should have only one input");
-//     }
-//     InputInfo::Ptr& inputInfoFirst = inputInfo.begin()->second;
-//     inputInfoFirst->setPrecision(Precision::U8);
-//     input = inputInfo.begin()->first;
-//     // -----------------------------------------------------------------------------------------------------
-
-//     // ---------------------------Check outputs ------------------------------------------------------------
-//     slog::info << "Checking Facial Landmarks Estimation network outputs" << slog::endl;
-//     OutputsDataMap outputInfo(netReader.getNetwork().getOutputsInfo());
-//     if (outputInfo.size() != 1) {
-//         throw std::logic_error("Facial Landmarks Estimation network should have only one output");
-//     }
-//     for (auto& output : outputInfo) {
-//         output.second->setPrecision(Precision::FP32);
-//     }
-//     std::map<std::string, bool> layerNames = {
-//         {outputFacialLandmarksBlobName, false}
-//     };
-
-//     for (auto && output : outputInfo) {
-//         CNNLayerPtr layer = output.second->getCreatorLayer().lock();
-//         if (!layer) {
-//             throw std::logic_error("Layer pointer is invalid");
-//         }
-//         if (layerNames.find(layer->name) == layerNames.end()) {
-//             throw std::logic_error("Facial Landmarks Estimation network output layer unknown: " + layer->name + ", should be " +
-//                                    outputFacialLandmarksBlobName);
-//         }
-//         const SizeVector outputDims = output.second->getTensorDesc().getDims();
-//         if (outputDims[1] != 70) {
-//             throw std::logic_error("Facial Landmarks Estimation network output layer should have 70 as a last dimension");
-//         }
-//         layerNames[layer->name] = true;
-//     }
-
-//     slog::info << "Loading Facial Landmarks Estimation model to the "<< deviceForInference << " plugin" << slog::endl;
-
-//     _enabled = true;
-//     return netReader.getNetwork();
-// }
-
-
-// Load::Load(BaseDetection& detector) : detector(detector) {
-// }
-
-// void Load::into(InferenceEngine::Core & ie, const std::string & deviceName, bool enable_dynamic_batch) const {
-//     if (detector.enabled()) {
-//         std::map<std::string, std::string> config = { };
-//         bool isPossibleDynBatch = deviceName.find("CPU") != std::string::npos ||
-//                                   deviceName.find("GPU") != std::string::npos;
-
-//         if (enable_dynamic_batch && isPossibleDynBatch) {
-//             config[PluginConfigParams::KEY_DYN_BATCH_ENABLED] = PluginConfigParams::YES;
-//         }
-
-//         detector.net = ie.LoadNetwork(detector.read(), deviceName, config);
-//     }
-// }
 
 CallStat::CallStat():
     _number_of_calls(0), _total_duration(0.0), _last_call_duration(0.0), _smoothed_duration(-1.0) {

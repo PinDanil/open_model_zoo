@@ -86,7 +86,7 @@ struct FaceDetection : BaseDetection {
                   float bb_dy_coefficient);
 
 
-    void fetchResults();
+    void fetchResults(cv::Mat ssd_results);
 };
 
 struct AgeGenderDetection : BaseDetection {
