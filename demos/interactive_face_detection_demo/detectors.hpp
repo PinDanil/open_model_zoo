@@ -170,10 +170,14 @@ struct FacialLandmarksDetection : BaseDetection {
     std::vector<std::vector<float>> landmarks_results;
     std::vector<cv::Rect> faces_bounding_boxes;
 
+    std::vector<cv::Mat> landmarks;
+
     FacialLandmarksDetection(const std::string &pathToModel,
                              const std::string &deviceForInference,
                              int maxBatch, bool isBatchDynamic, bool isAsync,
                              bool doRawOutputMessages);
+
+    void fetchResults(std::vector<cv::Mat> out_landmark);
 
     std::vector<float> operator[] (int idx) const;
 };

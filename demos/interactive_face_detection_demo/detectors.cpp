@@ -220,22 +220,24 @@ FacialLandmarksDetection::FacialLandmarksDetection(const std::string &pathToMode
       outputFacialLandmarksBlobName("align_fc3"), enquedFaces(0) {
 }
 
+void FacialLandmarksDetection::fetchResults(std::vector<cv::Mat> out_landmark) {
+    landmarks = out_landmark;
+}
+
 std::vector<float> FacialLandmarksDetection::operator[] (int idx) const {
     std::vector<float> normedLandmarks;
 
-    auto landmarksBlob = request->GetBlob(outputFacialLandmarksBlobName);
-    auto n_lm = getTensorChannels(landmarksBlob->getTensorDesc());
-    const float *normed_coordinates = request->GetBlob(outputFacialLandmarksBlobName)->buffer().as<float *>();
+    int n_lm = 70;
+    //auto n_lm = getTensorChannels(landmarksBlob->getTensorDesc());
+    //const float *normed_coordinates = request->GetBlob(outputFacialLandmarksBlobName)->buffer().as<float *>();
 
     if (doRawOutputMessages) {
         std::cout << "[" << idx << "] element, normed facial landmarks coordinates (x, y):" << std::endl;
     }
 
-    auto begin = n_lm * idx;
-    auto end = begin + n_lm / 2;
-    for (auto i_lm = begin; i_lm < end; ++i_lm) {
-        float normed_x = normed_coordinates[2 * i_lm];
-        float normed_y = normed_coordinates[2 * i_lm + 1];
+    for (auto i_lm = 0; i_lm < n_lm; ++i_lm) {
+        float normed_x = landmarks.at(idx).at<float>(2 * i_lm);
+        float normed_y = landmarks.at(idx).at<float>(2 * i_lm + 1);
 
         if (doRawOutputMessages) {
             std::cout << normed_x << ", " << normed_y << std::endl;
