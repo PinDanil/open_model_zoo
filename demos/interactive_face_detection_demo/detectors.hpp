@@ -149,10 +149,14 @@ struct EmotionsDetection : BaseDetection {
     std::string outputEmotions;
     size_t enquedFaces;
 
+    std::vector<cv::Mat> emo_vec;
+
     EmotionsDetection(const std::string &pathToModel,
                       const std::string &deviceForInference,
                       int maxBatch, bool isBatchDynamic, bool isAsync,
                       bool doRawOutputMessages);
+
+    void fetchResults(std::vector<cv::Mat> out_emotions);
 
     std::map<std::string, float> operator[] (int idx) const;
 

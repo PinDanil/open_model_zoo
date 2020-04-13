@@ -180,27 +180,30 @@ EmotionsDetection::EmotionsDetection(const std::string &pathToModel,
                 enquedFaces(0) {
 }
 
-
+void EmotionsDetection::fetchResults(std::vector<cv::Mat> out_emotions) {
+    emo_vec = out_emotions;
+}
 
 std::map<std::string, float> EmotionsDetection::operator[] (int idx) const {
     // Vector of supported emotions
     static const std::vector<std::string> emotionsVec = {"neutral", "happy", "sad", "surprise", "anger"};
+
     auto emotionsVecSize = emotionsVec.size();
 
-    Blob::Ptr emotionsBlob = request->GetBlob(outputEmotions);
+    // Blob::Ptr emotionsBlob = request->GetBlob(outputEmotions);
+    //
+    // /* emotions vector must have the same size as number of channels
+    //  * in model output. Default output format is NCHW, so index 1 is checked */
+    // size_t numOfChannels = emotionsBlob->getTensorDesc().getDims().at(1);
+    // if (numOfChannels != emotionsVecSize) {
+    //     throw std::logic_error("Output size (" + std::to_string(numOfChannels) +
+    //                            ") of the Emotions Recognition network is not equal "
+    //                            "to used emotions vector size (" +
+    //                            std::to_string(emotionsVec.size()) + ")");
+    // }
 
-    /* emotions vector must have the same size as number of channels
-     * in model output. Default output format is NCHW, so index 1 is checked */
-    size_t numOfChannels = emotionsBlob->getTensorDesc().getDims().at(1);
-    if (numOfChannels != emotionsVecSize) {
-        throw std::logic_error("Output size (" + std::to_string(numOfChannels) +
-                               ") of the Emotions Recognition network is not equal "
-                               "to used emotions vector size (" +
-                               std::to_string(emotionsVec.size()) + ")");
-    }
-
-    auto emotionsValues = emotionsBlob->buffer().as<float *>();
-    auto outputIdxPos = emotionsValues + idx * emotionsVecSize;
+    // auto emotionsValues = emo_vec.ptr<float>();
+    // auto outputIdxPos = emotionsValues + idx * emotionsVecSize;
     std::map<std::string, float> emotions;
 
     if (doRawOutputMessages) {
@@ -208,10 +211,10 @@ std::map<std::string, float> EmotionsDetection::operator[] (int idx) const {
     }
 
     for (size_t i = 0; i < emotionsVecSize; i++) {
-        emotions[emotionsVec[i]] = outputIdxPos[i];
+        emotions[emotionsVec[i]] = emo_vec.at(idx).at<float>(i);
 
         if (doRawOutputMessages) {
-            std::cout << emotionsVec[i] << " = " << outputIdxPos[i];
+            std::cout << emotionsVec[i] << " = " << emo_vec.at(idx).at<float>(i);
             if (emotionsVecSize - 1 != i) {
                 std::cout << ", ";
             } else {
