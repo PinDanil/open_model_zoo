@@ -343,8 +343,9 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             // one images and produces five outputs.
             return cv::GComputation(cv::GIn(in),
                                     cv::GOut(frame, detections, ages, genders, 
-                                             y_fc, p_fc, r_fc/*,
-                                             landmarks, emotions*/));
+                                             y_fc, p_fc, r_fc,
+                                             emotions/*,
+                                             landmarks, */));
         });
 
     // Note: it might be very useful to have dimensions loaded at this point!
@@ -411,9 +412,9 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     
     stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
 
-    cv::GRunArgsP out_vector = cv::gout(frame, out_detections, out_ages, out_genders
-                               , out_y_fc, out_p_fc, out_r_fc/*,
-                               out_landmarks, out_emotions*/);
+    cv::GRunArgsP out_vector = cv::gout(frame, out_detections, out_ages, out_genders,
+                                        out_y_fc, out_p_fc, out_r_fc,
+                                        out_emotions/*, out_landmarks */);
     cv::namedWindow("Detection results");
 
     stream.start();
@@ -436,6 +437,8 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
         ageGenderDetector.fetchResults(out_ages, out_genders);
 
         headPoseDetector.fetchResults(out_y_fc, out_p_fc, out_r_fc);
+
+        emotionsDetector.fetchResults(out_emotions);
 
         auto prev_detection_results = faceDetector.results;
         
@@ -488,6 +491,12 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
                                   i < headPoseDetector.maxBatch)*/true);
             if (/*face->isHeadPoseEnabled()*/ true) {
                 face->updateHeadPose(headPoseDetector[i]);
+            }
+
+            face->emotionsEnable(/*(emotionsDetector.enabled() &&
+                                  i < emotionsDetector.maxBatch)*/ true);
+            if (/*face->isEmotionsEnabled()*/ true) {
+                face->updateEmotions(emotionsDetector[i]);
             }
 
             faces.push_back(face);            

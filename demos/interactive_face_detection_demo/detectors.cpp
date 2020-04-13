@@ -190,20 +190,6 @@ std::map<std::string, float> EmotionsDetection::operator[] (int idx) const {
 
     auto emotionsVecSize = emotionsVec.size();
 
-    // Blob::Ptr emotionsBlob = request->GetBlob(outputEmotions);
-    //
-    // /* emotions vector must have the same size as number of channels
-    //  * in model output. Default output format is NCHW, so index 1 is checked */
-    // size_t numOfChannels = emotionsBlob->getTensorDesc().getDims().at(1);
-    // if (numOfChannels != emotionsVecSize) {
-    //     throw std::logic_error("Output size (" + std::to_string(numOfChannels) +
-    //                            ") of the Emotions Recognition network is not equal "
-    //                            "to used emotions vector size (" +
-    //                            std::to_string(emotionsVec.size()) + ")");
-    // }
-
-    // auto emotionsValues = emo_vec.ptr<float>();
-    // auto outputIdxPos = emotionsValues + idx * emotionsVecSize;
     std::map<std::string, float> emotions;
 
     if (doRawOutputMessages) {
