@@ -128,10 +128,18 @@ struct HeadPoseDetection : BaseDetection {
     size_t enquedFaces;
     cv::Mat cameraMatrix;
 
+    std::vector<cv::Mat> y_fc;
+    std::vector<cv::Mat> p_fc;
+    std::vector<cv::Mat> r_fc;
+
     HeadPoseDetection(const std::string &pathToModel,
                       const std::string &deviceForInference,
                       int maxBatch, bool isBatchDynamic, bool isAsync,
                       bool doRawOutputMessages);
+ 
+    void fetchResults(std::vector<cv::Mat> out_y_fc, 
+                      std::vector<cv::Mat> out_p_fc, 
+                      std::vector<cv::Mat> out_r_fc);
 
     Results operator[] (int idx) const;
 };

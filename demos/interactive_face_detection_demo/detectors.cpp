@@ -150,14 +150,19 @@ HeadPoseDetection::HeadPoseDetection(const std::string &pathToModel,
       outputAngleR("angle_r_fc"), outputAngleP("angle_p_fc"), outputAngleY("angle_y_fc"), enquedFaces(0) {
 }
 
-HeadPoseDetection::Results HeadPoseDetection::operator[] (int idx) const {
-    Blob::Ptr  angleR = request->GetBlob(outputAngleR);
-    Blob::Ptr  angleP = request->GetBlob(outputAngleP);
-    Blob::Ptr  angleY = request->GetBlob(outputAngleY);
+void HeadPoseDetection::fetchResults(std::vector<cv::Mat> out_y_fc, 
+                  std::vector<cv::Mat> out_p_fc, 
+                  std::vector<cv::Mat> out_r_fc) {
+    y_fc = out_y_fc;
+    p_fc = out_p_fc;
+    r_fc = out_r_fc;
+}
 
-    HeadPoseDetection::Results r = {angleR->buffer().as<float*>()[idx],
-                                    angleP->buffer().as<float*>()[idx],
-                                    angleY->buffer().as<float*>()[idx]};
+HeadPoseDetection::Results HeadPoseDetection::operator[] (int idx) const {
+
+    HeadPoseDetection::Results r = {r_fc.at(idx).at<float>(0),
+                                    p_fc.at(idx).at<float>(0),
+                                    y_fc.at(idx).at<float>(0)};
 
     if (doRawOutputMessages) {
         std::cout << "[" << idx << "] element, yaw = " << r.angle_y <<
