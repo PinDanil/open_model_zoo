@@ -98,12 +98,18 @@ struct AgeGenderDetection : BaseDetection {
     std::string input;
     std::string outputAge;
     std::string outputGender;
+
+    std::vector<cv::Mat> ages_result;
+    std::vector<cv::Mat> genders_result;
+
     size_t enquedFaces;
 
     AgeGenderDetection(const std::string &pathToModel,
                        const std::string &deviceForInference,
                        int maxBatch, bool isBatchDynamic, bool isAsync,
                        bool doRawOutputMessages);
+
+    void fetchResults(std::vector<cv::Mat> ages, std::vector<cv::Mat> genders);
 
     Result operator[] (int idx) const;
 };

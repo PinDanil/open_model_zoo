@@ -342,7 +342,7 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             // Now specify the computation's boundaries - our pipeline consumes
             // one images and produces five outputs.
             return cv::GComputation(cv::GIn(in),
-                                    cv::GOut(frame, detections/*faces, ages, genders, y_fc, p_fc, r_fc,
+                                    cv::GOut(frame, detections, ages, genders/*, y_fc, p_fc, r_fc,
                                             landmarks, emotions*/));
         });
 
@@ -410,10 +410,9 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     
     stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
 
-    cv::GRunArgsP out_vector = cv::gout(frame, out_detections/*, face_hub, out_ages, out_genders,
-                               out_y_fc, out_p_fc, out_r_fc,
+    cv::GRunArgsP out_vector = cv::gout(frame, out_detections, out_ages, out_genders
+                               /*, out_y_fc, out_p_fc, out_r_fc,
                                out_landmarks, out_emotions*/);
-
     cv::namedWindow("Detection results");
 
     stream.start();
@@ -421,12 +420,21 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     {
         timer.start("total");
 
-        stream.pull(std::move(out_vector));
+        if (!stream.try_pull(std::move(out_vector)))
+        {
+            // Use a try_pull() to obtain data.
+            // If there's no data, let UI refresh (and handle keypress)
+            if (cv::waitKey(1) >= 0) break;
+            else continue;
+        }
 
         faceDetector.fetchResults(out_detections,
                                   static_cast<float>(frame.cols),
                                   static_cast<float>(frame.rows));
-        
+
+        ageGenderDetector.fetchResults(out_ages, out_genders);
+
+
         auto prev_detection_results = faceDetector.results;
         
         //  Postprocessing
@@ -464,13 +472,24 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
                 face = std::make_shared<Face>(id++, rect);
             }
 
+
+            face->ageGenderEnable(/*(ageGenderDetector.enabled() &&
+                                   i < ageGenderDetector.maxBatch)*/
+                                   true);
+            if (/*face->isAgeGenderEnabled()*/ true) {
+                AgeGenderDetection::Result ageGenderResult = ageGenderDetector[i];
+                face->updateGender(ageGenderResult.maleProb);
+                face->updateAge(ageGenderResult.age);
+            }
+
+
             faces.push_back(face);            
         }
 
         //  Visualizing results
         if (!FLAGS_no_show || !FLAGS_o.empty()) {
             // std::cout<< <<std::endl;
-            std::cout<<"Got ot visual" <<std::endl;
+            // std::cout<<"Got ot visual" <<std::endl;
             out.str("");
             out << "Total image throughput: " << std::fixed << std::setprecision(2)
                 << 1000.f / (timer["total"].getSmoothedDuration()) << " fps";
@@ -486,8 +505,6 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
                 // std::cout<<"After visual" <<std::endl;
             }
         }
-        if (cv::waitKey(1) >= 0) break;
-        else continue;
     }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  G-API STUFF END  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

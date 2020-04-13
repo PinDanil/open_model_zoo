@@ -127,13 +127,15 @@ AgeGenderDetection::AgeGenderDetection(const std::string &pathToModel,
       enquedFaces(0) {
 }
 
+void AgeGenderDetection::fetchResults(std::vector<cv::Mat> ages, std::vector<cv::Mat> genders) {
+    ages_result = ages;
+    genders_result = genders;
+}
+
 // TODO: Переопределить метод
 AgeGenderDetection::Result AgeGenderDetection::operator[] (int idx) const {
-    Blob::Ptr  genderBlob = request->GetBlob(outputGender);
-    Blob::Ptr  ageBlob    = request->GetBlob(outputAge);
-
-    AgeGenderDetection::Result r = {ageBlob->buffer().as<float*>()[idx] * 100,
-                                         genderBlob->buffer().as<float*>()[idx * 2 + 1]};
+    AgeGenderDetection::Result r = {ages_result.at(idx).at<float>(0) * 100,
+                                    genders_result.at(idx).at<float>(0)};
     if (doRawOutputMessages) {
         std::cout << "[" << idx << "] element, male prob = " << r.maleProb << ", age = " << r.age << std::endl;
     }
