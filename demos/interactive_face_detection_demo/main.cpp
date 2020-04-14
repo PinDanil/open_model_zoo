@@ -94,34 +94,16 @@ int main(int argc, char *argv[]) {
         if (!ParseAndCheckCommandLine(argc, argv)) {
             return 0;
         }
-
-        Timer timer;
-        // read input (video) frame
-
-        cv::Mat frame;
-
-        const size_t width  = static_cast<size_t>(frame.cols);
-        const size_t height = static_cast<size_t>(frame.rows);
-
         // ---------------------------------------------------------------------------------------------------
         // --------------------------- 1. Loading Inference Engine -----------------------------
 
-        std::set<std::string> loadedDevices;
-        std::vector<std::pair<std::string, std::string>> cmdOptions = {
-            {FLAGS_d, FLAGS_m},
-            {FLAGS_d_ag, FLAGS_m_ag},
-            {FLAGS_d_hp, FLAGS_m_hp},
-            {FLAGS_d_em, FLAGS_m_em},
-            {FLAGS_d_lm, FLAGS_m_lm}
-        };
+        //
         FaceDetection faceDetector(FLAGS_m, FLAGS_d, 1, false, FLAGS_async, FLAGS_t, FLAGS_r,
                                    static_cast<float>(FLAGS_bb_enlarge_coef), static_cast<float>(FLAGS_dx_coef), static_cast<float>(FLAGS_dy_coef));
         AgeGenderDetection ageGenderDetector(FLAGS_m_ag, FLAGS_d_ag, FLAGS_n_ag, FLAGS_dyn_ag, FLAGS_async, FLAGS_r);
         HeadPoseDetection headPoseDetector(FLAGS_m_hp, FLAGS_d_hp, FLAGS_n_hp, FLAGS_dyn_hp, FLAGS_async, FLAGS_r);
         EmotionsDetection emotionsDetector(FLAGS_m_em, FLAGS_d_em, FLAGS_n_em, FLAGS_dyn_em, FLAGS_async, FLAGS_r);
         FacialLandmarksDetection facialLandmarksDetector(FLAGS_m_lm, FLAGS_d_lm, FLAGS_n_lm, FLAGS_dyn_lm, FLAGS_async, FLAGS_r);
-
-        /** Per-layer metrics **/
 
         // ---------------------------------------------------------------------------------------------------
 
@@ -150,18 +132,6 @@ int main(int argc, char *argv[]) {
         if (FLAGS_fps > 0) {
             msrate = 1000.f / FLAGS_fps;
         }
-
-        Visualizer::Ptr visualizer;
-        if (!FLAGS_no_show || !FLAGS_o.empty()) {
-            visualizer = std::make_shared<Visualizer>(cv::Size(width, height));
-            if (!FLAGS_no_show_emotion_bar /*&& emotionsDetector.enabled()*/) {
-                visualizer->enableEmotionBar(emotionsDetector.emotionsVec);
-            }
-        }
-
-        // Detecting all faces on the first frame and reading the next one
-
-        // Reading the next frame
 
         std::cout << "To close the application, press 'CTRL+C' here";
         if (!FLAGS_no_show) {
@@ -398,10 +368,7 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
 
     cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
 
-//    auto out_vector = cv::gout(imgBeautif, imgShow, vctFaceConts,
-//                               vctElsConts, vctRects);
-
-//    cv::Mat out_frame;
+    cv::Mat frame;
     cv::Mat out_detections;
     std::vector<cv::Rect> face_hub;
     std::vector<cv::Mat> out_ages;
@@ -415,16 +382,133 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     cv::GRunArgsP out_vector = cv::gout(frame, out_detections, out_ages, out_genders,
                                         out_y_fc, out_p_fc, out_r_fc,
                                         out_emotions, out_landmarks);
+
+
     cv::namedWindow("Detection results");
 
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Warm up things ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     stream.start();
+    stream.pull(std::move(out_vector));
+
+    const size_t width  = static_cast<size_t>(frame.cols);
+    const size_t height = static_cast<size_t>(frame.rows);
+
+    Timer timer;
+ 
+    Visualizer::Ptr visualizer;
+    if (!FLAGS_no_show || !FLAGS_o.empty()) {
+        visualizer = std::make_shared<Visualizer>(cv::Size(width, height));
+        if (!FLAGS_no_show_emotion_bar /*&& emotionsDetector.enabled()*/) {
+            visualizer->enableEmotionBar(emotionsDetector.emotionsVec);
+        }
+    }
+
+    {
+
+        timer.start("total");
+
+        faceDetector.fetchResults(out_detections,
+                                  static_cast<float>(frame.cols),
+                                  static_cast<float>(frame.rows));
+        ageGenderDetector.fetchResults(out_ages, out_genders);
+        headPoseDetector.fetchResults(out_y_fc, out_p_fc, out_r_fc);
+        emotionsDetector.fetchResults(out_emotions);
+        facialLandmarksDetector.fetchResults(out_landmarks);
+
+        auto prev_detection_results = faceDetector.results;
+        
+        //  Postprocessing
+        std::list<Face::Ptr> prev_faces;
+
+        if (!FLAGS_no_smooth) {
+            prev_faces.insert(prev_faces.begin(), faces.begin(), faces.end());
+        }
+
+        faces.clear();
+    
+        // For every detected face
+        for (size_t i = 0; i < prev_detection_results.size(); i++) {
+            auto& result = prev_detection_results[i];
+            cv::Rect rect = result.location & cv::Rect({0, 0}, frame.size());
+            
+        Face::Ptr face;
+    
+        if (!FLAGS_no_smooth) {
+
+            face = matchFace(rect, prev_faces);
+            float intensity_mean = calcMean(frame(rect));
+            intensity_mean += 1.0;
+            
+            if ((face == nullptr) ||
+                ((face != nullptr) && ((std::abs(intensity_mean - face->_intensity_mean) / face->_intensity_mean) > 0.07f))) {
+                face = std::make_shared<Face>(id++, rect);
+            } else {
+                prev_faces.remove(face);
+            }
+            
+            face->_intensity_mean = intensity_mean;
+            face->_location = rect;
+
+            } else {
+                face = std::make_shared<Face>(id++, rect);
+            }
+
+            face->ageGenderEnable(/*(ageGenderDetector.enabled() &&
+                                   i < ageGenderDetector.maxBatch)*/
+                                   true);
+            if (/*face->isAgeGenderEnabled()*/ true) {
+                AgeGenderDetection::Result ageGenderResult = ageGenderDetector[i];
+                face->updateGender(ageGenderResult.maleProb);
+                face->updateAge(ageGenderResult.age);
+            }
+
+            face->headPoseEnable(/*(headPoseDetector.enabled() &&
+                                  i < headPoseDetector.maxBatch)*/true);
+            if (/*face->isHeadPoseEnabled()*/ true) {
+                face->updateHeadPose(headPoseDetector[i]);
+            }
+
+            face->emotionsEnable(/*(emotionsDetector.enabled() &&
+                                  i < emotionsDetector.maxBatch)*/ true);
+            if (/*face->isEmotionsEnabled()*/ true) {
+                face->updateEmotions(emotionsDetector[i]);
+            }
+
+            face->landmarksEnable(/*(facialLandmarksDetector.enabled() &&
+                                   i < facialLandmarksDetector.maxBatch)*/ true);
+            if (/*face->isLandmarksEnabled()*/ true) {
+                face->updateLandmarks(facialLandmarksDetector[i]);
+            }
+
+            faces.push_back(face);            
+        }
+
+        //  Visualizing results
+        if (!FLAGS_no_show || !FLAGS_o.empty()) {
+            out.str("");
+            out << "Total image throughput: " << std::fixed << std::setprecision(2)
+                << 1000.f / (timer["total"].getSmoothedDuration()) << " fps";
+            cv::putText(frame, out.str(), cv::Point2f(10, 45), cv::FONT_HERSHEY_TRIPLEX, 1.2,
+                        cv::Scalar(255, 0, 0), 2);
+
+            // drawing faces
+            visualizer->draw(frame, faces);
+
+            if (!FLAGS_no_show) {
+                cv::imshow("Detection results", frame);
+            }
+        }
+    }
+
     while (stream.running())
     {
         timer.start("total");
         
         stream.pull(std::move(out_vector));
 
-        if (!FLAGS_no_show && -1 != cv::waitKey(delay)) break;
+        if (!FLAGS_no_show && -1 != cv::waitKey(delay)) {
+            stream.stop();
+        }
 
         faceDetector.fetchResults(out_detections,
                                   static_cast<float>(frame.cols),
