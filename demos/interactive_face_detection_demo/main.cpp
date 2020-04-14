@@ -344,8 +344,8 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             return cv::GComputation(cv::GIn(in),
                                     cv::GOut(frame, detections, ages, genders, 
                                              y_fc, p_fc, r_fc,
-                                             emotions/*,
-                                             landmarks, */));
+                                             emotions,
+                                             landmarks));
         });
 
     // Note: it might be very useful to have dimensions loaded at this point!
@@ -414,7 +414,7 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
 
     cv::GRunArgsP out_vector = cv::gout(frame, out_detections, out_ages, out_genders,
                                         out_y_fc, out_p_fc, out_r_fc,
-                                        out_emotions/*, out_landmarks */);
+                                        out_emotions, out_landmarks);
     cv::namedWindow("Detection results");
 
     stream.start();
@@ -433,12 +433,10 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
         faceDetector.fetchResults(out_detections,
                                   static_cast<float>(frame.cols),
                                   static_cast<float>(frame.rows));
-
         ageGenderDetector.fetchResults(out_ages, out_genders);
-
         headPoseDetector.fetchResults(out_y_fc, out_p_fc, out_r_fc);
-
         emotionsDetector.fetchResults(out_emotions);
+        facialLandmarksDetector.fetchResults(out_landmarks);
 
         auto prev_detection_results = faceDetector.results;
         
@@ -497,6 +495,12 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
                                   i < emotionsDetector.maxBatch)*/ true);
             if (/*face->isEmotionsEnabled()*/ true) {
                 face->updateEmotions(emotionsDetector[i]);
+            }
+
+            face->landmarksEnable(/*(facialLandmarksDetector.enabled() &&
+                                   i < facialLandmarksDetector.maxBatch)*/ true);
+            if (/*face->isLandmarksEnabled()*/ true) {
+                face->updateLandmarks(facialLandmarksDetector[i]);
             }
 
             faces.push_back(face);            
