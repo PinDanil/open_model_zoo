@@ -141,14 +141,14 @@ int main(int argc, char *argv[]) {
         size_t framesCounter = 0;
 //        bool frameReadStatus;
 //        bool isLastFrame;
-//        int delay = 1;
-//        double msrate = -1;
+        int delay = 1;
+        double msrate = -1;
         cv::Mat prev_frame, next_frame;
         std::list<Face::Ptr> faces;
         size_t id = 0;
 
         if (FLAGS_fps > 0) {
-//            msrate = 1000.f / FLAGS_fps;
+            msrate = 1000.f / FLAGS_fps;
         }
 
         Visualizer::Ptr visualizer;
@@ -421,12 +421,15 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     while (stream.running())
     {
         timer.start("total");
-
+        
         if (!stream.try_pull(std::move(out_vector)))
         {
-            // Use a try_pull() to obtain data.
-            // If there's no data, let UI refresh (and handle keypress)
-            if (cv::waitKey(1) >= 0) break;
+            // // Use a try_pull() to obtain data.
+            // // If there's no data, let UI refresh (and handle keypress)
+            // if (cv::waitKey(1) >= 0) break;
+            // else continue;
+
+            if (!FLAGS_no_show && -1 != cv::waitKey(delay)) break;
             else continue;
         }
 
@@ -475,7 +478,6 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
                 face = std::make_shared<Face>(id++, rect);
             }
 
-
             face->ageGenderEnable(/*(ageGenderDetector.enabled() &&
                                    i < ageGenderDetector.maxBatch)*/
                                    true);
@@ -508,8 +510,6 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
 
         //  Visualizing results
         if (!FLAGS_no_show || !FLAGS_o.empty()) {
-            // std::cout<< <<std::endl;
-            // std::cout<<"Got ot visual" <<std::endl;
             out.str("");
             out << "Total image throughput: " << std::fixed << std::setprecision(2)
                 << 1000.f / (timer["total"].getSmoothedDuration()) << " fps";
@@ -520,10 +520,16 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             visualizer->draw(frame, faces);
 
             if (!FLAGS_no_show) {
-                // std::cout<<"Abaut to visual frame "<<frame.cols<< ' '<<frame.rows <<std::endl;
                 cv::imshow("Detection results", frame);
-                // std::cout<<"After visual" <<std::endl;
             }
+        }
+
+        framesCounter++;
+
+        timer.finish("total");
+
+        if (FLAGS_fps > 0) {
+            delay = std::max(1, static_cast<int>(msrate - timer["total"].getLastCallDuration()));
         }
     }
 
