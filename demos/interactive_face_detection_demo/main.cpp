@@ -422,16 +422,9 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     {
         timer.start("total");
         
-        if (!stream.try_pull(std::move(out_vector)))
-        {
-            // // Use a try_pull() to obtain data.
-            // // If there's no data, let UI refresh (and handle keypress)
-            // if (cv::waitKey(1) >= 0) break;
-            // else continue;
+        stream.pull(std::move(out_vector));
 
-            if (!FLAGS_no_show && -1 != cv::waitKey(delay)) break;
-            else continue;
-        }
+        if (!FLAGS_no_show && -1 != cv::waitKey(delay)) break;
 
         faceDetector.fetchResults(out_detections,
                                   static_cast<float>(frame.cols),
