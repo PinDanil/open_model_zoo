@@ -41,7 +41,7 @@ void Face::updateEmotions(std::map<std::string, float> values) {
     }
 }
 
-void Face::updateHeadPose(HeadPoseDetection::Results values) {
+void Face::updateHeadPose(HeadPoseResults values) {
     _headPose = values;
 }
 
@@ -69,7 +69,7 @@ std::pair<std::string, float> Face::getMainEmotion() {
     return std::make_pair(x->first, x->second);
 }
 
-HeadPoseDetection::Results Face::getHeadPose() {
+HeadPoseResults Face::getHeadPose() {
     return _headPose;
 }
 
@@ -123,10 +123,8 @@ float calcMean(const cv::Mat& src) {
 }
 
 Face::Ptr matchFace(cv::Rect rect, std::list<Face::Ptr>& faces) {
-    //std::cout<< 1 <<std::endl;
     Face::Ptr face(nullptr);
     float maxIoU = 0.55f;
-    //std::cout<< 2 <<std::endl;
     
     for (auto&& f : faces) {
         float iou = calcIoU(rect, f->_location);
@@ -135,7 +133,6 @@ Face::Ptr matchFace(cv::Rect rect, std::list<Face::Ptr>& faces) {
             maxIoU = iou;
         }
     }
-    //std::cout<< 3 <<std::endl;
 
     return face;
 }

@@ -64,7 +64,7 @@ public:
                             cv::Scalar zAxisColor = cv::Scalar(255, 0, 0),
                             int axisThickness = 2);
 
-    void draw(cv::Mat& frame, cv::Point3f cpoint, HeadPoseDetection::Results headPose);
+    void draw(cv::Mat& frame, cv::Point3f cpoint, HeadPoseResults headPose);
 
 private:
     void buildCameraMatrix(cv::Mat& cameraMatrix, int cx, int cy, float focalLength);

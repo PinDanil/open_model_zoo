@@ -87,7 +87,7 @@ void HeadPoseVisualizer::buildCameraMatrix(cv::Mat& cameraMatrix, int cx, int cy
     cameraMatrix.at<float>(8) = 1;
 }
 
-void HeadPoseVisualizer::draw(cv::Mat& frame, cv::Point3f cpoint, HeadPoseDetection::Results headPose) {
+void HeadPoseVisualizer::draw(cv::Mat& frame, cv::Point3f cpoint, HeadPoseResults headPose) {
     double yaw   = headPose.angle_y;
     double pitch = headPose.angle_p;
     double roll  = headPose.angle_r;

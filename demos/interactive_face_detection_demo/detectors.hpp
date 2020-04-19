@@ -32,163 +32,23 @@
 
 // -------------------------Generic routines for detection networks-------------------------------------------------
 
-struct FacesResult {
+struct FaceDetectionResult {
     int label;
     float confidence;
     cv::Rect location;
 };
 
-
-
-struct BaseDetection {
-    InferenceEngine::ExecutableNetwork net;
-    InferenceEngine::InferRequest::Ptr request;
-    std::string topoName;
-    std::string pathToModel;
-    std::string deviceForInference;
-    const size_t maxBatch;
-    bool isBatchDynamic;
-    const bool isAsync;
-    mutable bool enablingChecked;
-    mutable bool _enabled;
-    const bool doRawOutputMessages;
-
-    BaseDetection(std::string topoName,
-                  const std::string &pathToModel,
-                  const std::string &deviceForInference,
-                  int maxBatch, bool isBatchDynamic, bool isAsync,
-                  bool doRawOutputMessages);
-
-    virtual ~BaseDetection();
-
-    void printPerformanceCounts(std::string fullDeviceName);
+struct AgeGenderResult {
+    float age;
+    float maleProb;
 };
 
-struct FaceDetection : BaseDetection {
-    struct Result {
-        int label;
-        float confidence;
-        cv::Rect location;
-    };
-
-    std::string input;
-    std::string output;
-    double detectionThreshold;
-    int maxProposalCount;
-    int objectSize;
-    int enquedFrames;
-    float width;
-    float height;
-    float bb_enlarge_coefficient;
-    float bb_dx_coefficient;
-    float bb_dy_coefficient;
-    bool resultsFetched;
-    std::vector<std::string> labels;
-    std::vector<Result> results;
-
-    FaceDetection(const std::string &pathToModel,
-                  const std::string &deviceForInference,
-                  int maxBatch, bool isBatchDynamic, bool isAsync,
-                  double detectionThreshold, bool doRawOutputMessages,
-                  float bb_enlarge_coefficient, float bb_dx_coefficient,
-                  float bb_dy_coefficient);
-
-
-    void fetchResults(cv::Mat ssd_results, float width, float height);
+struct HeadPoseResults {
+    float angle_r;
+    float angle_p;
+    float angle_y;
 };
 
-struct AgeGenderDetection : BaseDetection {
-    struct Result {
-        float age;
-        float maleProb;
-    };
-
-    std::string input;
-    std::string outputAge;
-    std::string outputGender;
-
-    std::vector<cv::Mat> ages_result;
-    std::vector<cv::Mat> genders_result;
-
-    size_t enquedFaces;
-
-    AgeGenderDetection(const std::string &pathToModel,
-                       const std::string &deviceForInference,
-                       int maxBatch, bool isBatchDynamic, bool isAsync,
-                       bool doRawOutputMessages);
-
-    void fetchResults(std::vector<cv::Mat> ages, std::vector<cv::Mat> genders);
-
-    Result operator[] (int idx) const;
-};
-
-struct HeadPoseDetection : BaseDetection {
-    struct Results {
-        float angle_r;
-        float angle_p;
-        float angle_y;
-    };
-
-    std::string input;
-    std::string outputAngleR;
-    std::string outputAngleP;
-    std::string outputAngleY;
-    size_t enquedFaces;
-    cv::Mat cameraMatrix;
-
-    std::vector<cv::Mat> y_fc;
-    std::vector<cv::Mat> p_fc;
-    std::vector<cv::Mat> r_fc;
-
-    HeadPoseDetection(const std::string &pathToModel,
-                      const std::string &deviceForInference,
-                      int maxBatch, bool isBatchDynamic, bool isAsync,
-                      bool doRawOutputMessages);
- 
-    void fetchResults(std::vector<cv::Mat> out_y_fc, 
-                      std::vector<cv::Mat> out_p_fc, 
-                      std::vector<cv::Mat> out_r_fc);
-
-    Results operator[] (int idx) const;
-};
-
-struct EmotionsDetection : BaseDetection {
-    std::string input;
-    std::string outputEmotions;
-    size_t enquedFaces;
-
-    std::vector<cv::Mat> emo_vec;
-
-    EmotionsDetection(const std::string &pathToModel,
-                      const std::string &deviceForInference,
-                      int maxBatch, bool isBatchDynamic, bool isAsync,
-                      bool doRawOutputMessages);
-
-    void fetchResults(std::vector<cv::Mat> out_emotions);
-
-    std::map<std::string, float> operator[] (int idx) const;
-
-    const std::vector<std::string> emotionsVec = {"neutral", "happy", "sad", "surprise", "anger"};
-};
-
-struct FacialLandmarksDetection : BaseDetection {
-    std::string input;
-    std::string outputFacialLandmarksBlobName;
-    size_t enquedFaces;
-    std::vector<std::vector<float>> landmarks_results;
-    std::vector<cv::Rect> faces_bounding_boxes;
-
-    std::vector<cv::Mat> landmarks;
-
-    FacialLandmarksDetection(const std::string &pathToModel,
-                             const std::string &deviceForInference,
-                             int maxBatch, bool isBatchDynamic, bool isAsync,
-                             bool doRawOutputMessages);
-
-    void fetchResults(std::vector<cv::Mat> out_landmark);
-
-    std::vector<float> operator[] (int idx) const;
-};
 
 class CallStat {
 public:
