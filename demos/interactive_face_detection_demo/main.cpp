@@ -340,7 +340,7 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
         //                           static_cast<float>(frame.cols),
         //                           static_cast<float>(frame.rows));
         //ageGenderDetector.fetchResults(out_ages, out_genders);
-        headPoseDetector.fetchResults(out_y_fc, out_p_fc, out_r_fc);
+        //headPoseDetector.fetchResults(out_y_fc, out_p_fc, out_r_fc);
         emotionsDetector.fetchResults(out_emotions);
         facialLandmarksDetector.fetchResults(out_landmarks);
 
@@ -386,6 +386,15 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
                                    true);            
             face->updateGender(out_genders[i].at<float>(0));
             face->updateAge(out_ages[i].at<float>(0) * 100);
+
+
+            face->headPoseEnable(/*(headPoseDetector.enabled() &&
+                                  i < headPoseDetector.maxBatch)*/true);
+            if (/*face->isHeadPoseEnabled()*/ true) {
+                face->updateHeadPose({out_r_fc[i].at<float>(0),
+                                      out_p_fc[i].at<float>(0),
+                                      out_y_fc[i].at<float>(0)});
+            }
 
             // End of face postprocesing
 
