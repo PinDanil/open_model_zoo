@@ -396,22 +396,22 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
                                       out_y_fc[i].at<float>(0)});
             }
 
+            face->emotionsEnable(/*(emotionsDetector.enabled() &&
+                                  i < emotionsDetector.maxBatch)*/ true);
+            face->updateEmotions({
+                                  {"neutral", out_emotions[i].at<float>(0)},
+                                  {"happy", out_emotions[i].at<float>(1)} ,
+                                  {"sad", out_emotions[i].at<float>(2)} ,
+                                  {"surprise", out_emotions[i].at<float>(3)}, 
+                                  {"anger", out_emotions[i].at<float>(4)}
+                                  });
+
+            
+
             // End of face postprocesing
 
 
 
-//            face->headPoseEnable(/*(headPoseDetector.enabled() &&
-//                                  i < headPoseDetector.maxBatch)*/true);
-//            if (/*face->isHeadPoseEnabled()*/ true) {
-//                face->updateHeadPose(headPoseDetector[i]);
-//            }
-//
-//            face->emotionsEnable(/*(emotionsDetector.enabled() &&
-//                                  i < emotionsDetector.maxBatch)*/ true);
-//            if (/*face->isEmotionsEnabled()*/ true) {
-//                face->updateEmotions(emotionsDetector[i]);
-//            }
-//
 //            face->landmarksEnable(/*(facialLandmarksDetector.enabled() &&
 //                                   i < facialLandmarksDetector.maxBatch)*/ true);
 //            if (/*face->isLandmarksEnabled()*/ true) {
