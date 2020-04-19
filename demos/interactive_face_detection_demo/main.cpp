@@ -406,7 +406,19 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
                                   {"anger", out_emotions[i].at<float>(4)}
                                   });
 
-            
+            face->landmarksEnable(/*(facialLandmarksDetector.enabled() &&
+                                   i < facialLandmarksDetector.maxBatch)*/ true);
+            std::vector<float> normedLandmarks;
+            int n_lm = 70;
+            for (auto i_lm = 0; i_lm < n_lm; ++i_lm) {
+                float normed_x = out_landmarks[i].at<float>(2 * i_lm);
+                float normed_y = out_landmarks[i].at<float>(2 * i_lm + 1);
+
+                normedLandmarks.push_back(normed_x);
+                normedLandmarks.push_back(normed_y);
+            }
+
+            face->updateLandmarks(facialLandmarksDetector[i]);
 
             // End of face postprocesing
 
