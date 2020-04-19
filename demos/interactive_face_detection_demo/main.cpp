@@ -243,7 +243,9 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             cv::GMat frame = cv::gapi::copy(in);
 
             return cv::GComputation(cv::GIn(in),
-                                    cv::GOut(frame, detections, ages, genders, 
+                                    cv::GOut(frame,
+                                             faces,
+                                             detections, ages, genders, 
                                              y_fc, p_fc, r_fc,
                                              emotions,
                                              landmarks));
@@ -297,7 +299,9 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     
     stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
 
-    cv::GRunArgsP out_vector = cv::gout(frame, out_detections, out_ages, out_genders,
+    cv::GRunArgsP out_vector = cv::gout(frame, face_hub, 
+                                        out_detections,
+                                        out_ages, out_genders,
                                         out_y_fc, out_p_fc, out_r_fc,
                                         out_emotions, out_landmarks);
 
@@ -331,15 +335,17 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             stream.stop();
         }
 
-        faceDetector.fetchResults(out_detections,
-                                  static_cast<float>(frame.cols),
-                                  static_cast<float>(frame.rows));
+        // 
+        // faceDetector.fetchResults(out_detections,
+        //                           static_cast<float>(frame.cols),
+        //                           static_cast<float>(frame.rows));
         ageGenderDetector.fetchResults(out_ages, out_genders);
         headPoseDetector.fetchResults(out_y_fc, out_p_fc, out_r_fc);
         emotionsDetector.fetchResults(out_emotions);
         facialLandmarksDetector.fetchResults(out_landmarks);
 
-        auto prev_detection_results = faceDetector.results;
+        // !
+        // auto prev_detection_results = faceDetector.results;
         
         //  Postprocessing
         std::list<Face::Ptr> prev_faces;
@@ -351,13 +357,13 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
         faces.clear();
     
         // For every detected face
-        for (size_t i = 0; i < prev_detection_results.size(); i++) {
-            auto& result = prev_detection_results[i];
-            cv::Rect rect = result.location & cv::Rect({0, 0}, frame.size());
-            
-            Face::Ptr face;
-            if (!FLAGS_no_smooth) {
+        for (size_t i = 0; i < face_hub.size(); i++) {
+            //auto& result = prev_detection_results[i];
+            cv::Rect rect = face_hub[i] & cv::Rect({0, 0}, frame.size());
 
+            Face::Ptr face;
+            // wthat is this for??
+            if (!FLAGS_no_smooth) {
                 face = matchFace(rect, prev_faces);
                 float intensity_mean = calcMean(frame(rect));
                 intensity_mean += 1.0;
@@ -371,37 +377,38 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             
                 face->_intensity_mean = intensity_mean;
                 face->_location = rect;
-            
             } else {
                 face = std::make_shared<Face>(id++, rect);
             }
 
-            face->ageGenderEnable(/*(ageGenderDetector.enabled() &&
-                                   i < ageGenderDetector.maxBatch)*/
-                                   true);
-            if (/*face->isAgeGenderEnabled()*/ true) {
-                AgeGenderDetection::Result ageGenderResult = ageGenderDetector[i];
-                face->updateGender(ageGenderResult.maleProb);
-                face->updateAge(ageGenderResult.age);
-            }
+            // End of face postprocesing
 
-            face->headPoseEnable(/*(headPoseDetector.enabled() &&
-                                  i < headPoseDetector.maxBatch)*/true);
-            if (/*face->isHeadPoseEnabled()*/ true) {
-                face->updateHeadPose(headPoseDetector[i]);
-            }
-
-            face->emotionsEnable(/*(emotionsDetector.enabled() &&
-                                  i < emotionsDetector.maxBatch)*/ true);
-            if (/*face->isEmotionsEnabled()*/ true) {
-                face->updateEmotions(emotionsDetector[i]);
-            }
-
-            face->landmarksEnable(/*(facialLandmarksDetector.enabled() &&
-                                   i < facialLandmarksDetector.maxBatch)*/ true);
-            if (/*face->isLandmarksEnabled()*/ true) {
-                face->updateLandmarks(facialLandmarksDetector[i]);
-            }
+//            face->ageGenderEnable(/*(ageGenderDetector.enabled() &&
+//                                   i < ageGenderDetector.maxBatch)*/
+//                                   true);
+//            if (/*face->isAgeGenderEnabled()*/ true) {
+//                AgeGenderDetection::Result ageGenderResult = ageGenderDetector[i];
+//                face->updateGender(ageGenderResult.maleProb);
+//                face->updateAge(ageGenderResult.age);
+//            }
+//
+//            face->headPoseEnable(/*(headPoseDetector.enabled() &&
+//                                  i < headPoseDetector.maxBatch)*/true);
+//            if (/*face->isHeadPoseEnabled()*/ true) {
+//                face->updateHeadPose(headPoseDetector[i]);
+//            }
+//
+//            face->emotionsEnable(/*(emotionsDetector.enabled() &&
+//                                  i < emotionsDetector.maxBatch)*/ true);
+//            if (/*face->isEmotionsEnabled()*/ true) {
+//                face->updateEmotions(emotionsDetector[i]);
+//            }
+//
+//            face->landmarksEnable(/*(facialLandmarksDetector.enabled() &&
+//                                   i < facialLandmarksDetector.maxBatch)*/ true);
+//            if (/*face->isLandmarksEnabled()*/ true) {
+//                face->updateLandmarks(facialLandmarksDetector[i]);
+//            }
 
             faces.push_back(face);            
         }

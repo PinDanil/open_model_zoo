@@ -32,6 +32,14 @@
 
 // -------------------------Generic routines for detection networks-------------------------------------------------
 
+struct FacesResult {
+    int label;
+    float confidence;
+    cv::Rect location;
+};
+
+
+
 struct BaseDetection {
     InferenceEngine::ExecutableNetwork net;
     InferenceEngine::InferRequest::Ptr request;
