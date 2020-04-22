@@ -193,6 +193,38 @@ int main(int argc, char *argv[]) {
             }
         };
 
+        bool age_gender_enable = !FLAGS_m_ag.empty() && !FLAGS_w_ag.empty() && !FLAGS_d_ag.empty();
+        bool headpose_enable = !FLAGS_m_hp.empty() && !FLAGS_w_hp.empty() && !FLAGS_d_hp.empty();
+        bool landmarks_enable = !FLAGS_m_lm.empty() && !FLAGS_w_lm.empty() && !FLAGS_d_lm.empty();
+        bool emotions_enable = !FLAGS_m_em.empty() && !FLAGS_w_em.empty() && !FLAGS_d_em.empty();
+
+/*
+        !FLAGS_m_ag.empty() && !FLAGS_w_ag.empty() && !FLAGS_d_ag.empty();
+        !FLAGS_m_hp.empty() && !FLAGS_w_hp.empty() && !FLAGS_d_hp.empty();
+        !FLAGS_m_lm.empty() && !FLAGS_w_lm.empty() && !FLAGS_d_lm.empty();
+        !FLAGS_m_em.empty() && !FLAGS_w_em.empty() && !FLAGS_d_em.empty();
+
+        std::cout<<!FLAGS_m_ag.empty() <<std::endl;
+        std::cout<<!FLAGS_w_ag.empty() <<std::endl;
+        std::cout<<!FLAGS_d_ag.empty() <<std::endl;
+        
+        std::cout<<!FLAGS_m_hp.empty() <<std::endl;
+        std::cout<<!FLAGS_w_hp.empty() <<std::endl;
+        std::cout<<!FLAGS_d_hp.empty() <<std::endl;
+
+        std::cout<< !FLAGS_m_lm.empty() <<std::endl;
+        std::cout<< !FLAGS_w_lm.empty() <<std::endl;
+        std::cout<< !FLAGS_d_lm.empty() <<std::endl;
+
+        std::cout<< !FLAGS_m_em.empty() <<std::endl;
+        std::cout<< !FLAGS_w_em.empty() <<std::endl;
+        std::cout<< !FLAGS_d_em.empty() <<std::endl;
+
+        std::cout<< age_gender_enable <<std::endl;
+        std::cout<< headpose_enable <<std::endl;
+        std::cout<< landmarks_enable <<std::endl;
+        std::cout<< emotions_enable <<std::endl;
+*/
         cv::GComputation pipeline([]() {
                 cv::GMat in;
 
@@ -223,13 +255,7 @@ int main(int argc, char *argv[]) {
                 outs += GOut(emotions);
                 outs += GOut(landmarks);
 
-                return cv::GComputation(cv::GIn(in),
-                                        cv::GOut(frame,
-                                                 faces,
-                                                 detections, ages, genders, 
-                                                 y_fc, p_fc, r_fc,
-                                                 emotions,
-                                                 landmarks));
+                return cv::GComputation(cv::GIn(in), std::move(outs));
         });
 
         auto det_net = cv::gapi::ie::Params<Faces> {
@@ -270,10 +296,9 @@ int main(int argc, char *argv[]) {
         cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
 
         cv::Mat frame;
-        cv::Mat out_detections;
+        //cv::Mat out_detections;
         std::vector<cv::Rect> face_hub;
-        std::vector<cv::Mat> out_ages;
-        std::vector<cv::Mat> out_genders;
+        std::vector<cv::Mat> out_ages, out_genders;
         std::vector<cv::Mat> out_y_fc, out_p_fc, out_r_fc; 
         std::vector<cv::Mat> out_landmarks;
         std::vector<cv::Mat> out_emotions;
@@ -281,7 +306,7 @@ int main(int argc, char *argv[]) {
         stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
 
         cv::GRunArgsP out_vector = cv::gout(frame, face_hub, 
-                                            out_detections,
+                                            //out_detections,
                                             out_ages, out_genders,
                                             out_y_fc, out_p_fc, out_r_fc,
                                             out_emotions, out_landmarks);
