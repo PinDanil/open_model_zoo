@@ -193,10 +193,10 @@ int main(int argc, char *argv[]) {
             }
         };
 
-        bool age_gender_enable = !FLAGS_m_ag.empty() && !FLAGS_w_ag.empty() && !FLAGS_d_ag.empty();
-        bool headpose_enable = !FLAGS_m_hp.empty() && !FLAGS_w_hp.empty() && !FLAGS_d_hp.empty();
-        bool landmarks_enable = !FLAGS_m_lm.empty() && !FLAGS_w_lm.empty() && !FLAGS_d_lm.empty();
-        bool emotions_enable = !FLAGS_m_em.empty() && !FLAGS_w_em.empty() && !FLAGS_d_em.empty();
+//        bool age_gender_enable = !FLAGS_m_ag.empty() && !FLAGS_w_ag.empty() && !FLAGS_d_ag.empty();
+//        bool headpose_enable = !FLAGS_m_hp.empty() && !FLAGS_w_hp.empty() && !FLAGS_d_hp.empty();
+//        bool landmarks_enable = !FLAGS_m_lm.empty() && !FLAGS_w_lm.empty() && !FLAGS_d_lm.empty();
+//        bool emotions_enable = !FLAGS_m_em.empty() && !FLAGS_w_em.empty() && !FLAGS_d_em.empty();
 
 /*
         !FLAGS_m_ag.empty() && !FLAGS_w_ag.empty() && !FLAGS_d_ag.empty();
@@ -249,7 +249,7 @@ int main(int argc, char *argv[]) {
 
                 cv::GProtoOutputArgs outs = GOut(frame);
                 outs += GOut(faces);
-                outs += GOut(detections);
+                //outs += GOut(detections);
                 outs += GOut(ages, genders); 
                 outs += GOut(y_fc, p_fc, r_fc);
                 outs += GOut(emotions);
@@ -305,11 +305,19 @@ int main(int argc, char *argv[]) {
     
         stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
 
-        cv::GRunArgsP out_vector = cv::gout(frame, face_hub, 
-                                            //out_detections,
-                                            out_ages, out_genders,
-                                            out_y_fc, out_p_fc, out_r_fc,
-                                            out_emotions, out_landmarks);
+
+        cv::GRunArgsP out_vector;
+        AddGRunArgsP(out_vector, cv::gout(frame));
+        AddGRunArgsP(out_vector, cv::gout(face_hub));
+        AddGRunArgsP(out_vector, cv::gout(out_ages, out_genders));
+        AddGRunArgsP(out_vector, cv::gout(out_y_fc, out_p_fc, out_r_fc));
+        AddGRunArgsP(out_vector, cv::gout(out_emotions));
+        AddGRunArgsP(out_vector, cv::gout(out_landmarks));
+//        cv::GRunArgsP out_vector = cv::gout(frame, face_hub, 
+//                                            out_detections,
+//                                            out_ages, out_genders,
+//                                            out_y_fc, out_p_fc, out_r_fc,
+//                                            out_emotions, out_landmarks);
 
 
         cv::namedWindow("Detection results");
