@@ -215,6 +215,14 @@ int main(int argc, char *argv[]) {
 
                 cv::GMat frame = cv::gapi::copy(in);
 
+                cv::GProtoOutputArgs outs = GOut(frame);
+                outs += GOut(faces);
+                outs += GOut(detections);
+                outs += GOut(ages, genders); 
+                outs += GOut(y_fc, p_fc, r_fc);
+                outs += GOut(emotions);
+                outs += GOut(landmarks);
+
                 return cv::GComputation(cv::GIn(in),
                                         cv::GOut(frame,
                                                  faces,
