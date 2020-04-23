@@ -193,39 +193,12 @@ int main(int argc, char *argv[]) {
             }
         };
 
-//        bool age_gender_enable = !FLAGS_m_ag.empty() && !FLAGS_w_ag.empty() && !FLAGS_d_ag.empty();
-//        bool headpose_enable = !FLAGS_m_hp.empty() && !FLAGS_w_hp.empty() && !FLAGS_d_hp.empty();
-//        bool landmarks_enable = !FLAGS_m_lm.empty() && !FLAGS_w_lm.empty() && !FLAGS_d_lm.empty();
-//        bool emotions_enable = !FLAGS_m_em.empty() && !FLAGS_w_em.empty() && !FLAGS_d_em.empty();
+        bool age_gender_enable = !FLAGS_m_ag.empty() && !FLAGS_w_ag.empty() && !FLAGS_d_ag.empty();
+        bool headpose_enable = !FLAGS_m_hp.empty() && !FLAGS_w_hp.empty() && !FLAGS_d_hp.empty();
+        bool emotions_enable = !FLAGS_m_em.empty() && !FLAGS_w_em.empty() && !FLAGS_d_em.empty();
+        bool landmarks_enable = !FLAGS_m_lm.empty() && !FLAGS_w_lm.empty() && !FLAGS_d_lm.empty();
 
-/*
-        !FLAGS_m_ag.empty() && !FLAGS_w_ag.empty() && !FLAGS_d_ag.empty();
-        !FLAGS_m_hp.empty() && !FLAGS_w_hp.empty() && !FLAGS_d_hp.empty();
-        !FLAGS_m_lm.empty() && !FLAGS_w_lm.empty() && !FLAGS_d_lm.empty();
-        !FLAGS_m_em.empty() && !FLAGS_w_em.empty() && !FLAGS_d_em.empty();
-
-        std::cout<<!FLAGS_m_ag.empty() <<std::endl;
-        std::cout<<!FLAGS_w_ag.empty() <<std::endl;
-        std::cout<<!FLAGS_d_ag.empty() <<std::endl;
-        
-        std::cout<<!FLAGS_m_hp.empty() <<std::endl;
-        std::cout<<!FLAGS_w_hp.empty() <<std::endl;
-        std::cout<<!FLAGS_d_hp.empty() <<std::endl;
-
-        std::cout<< !FLAGS_m_lm.empty() <<std::endl;
-        std::cout<< !FLAGS_w_lm.empty() <<std::endl;
-        std::cout<< !FLAGS_d_lm.empty() <<std::endl;
-
-        std::cout<< !FLAGS_m_em.empty() <<std::endl;
-        std::cout<< !FLAGS_w_em.empty() <<std::endl;
-        std::cout<< !FLAGS_d_em.empty() <<std::endl;
-
-        std::cout<< age_gender_enable <<std::endl;
-        std::cout<< headpose_enable <<std::endl;
-        std::cout<< landmarks_enable <<std::endl;
-        std::cout<< emotions_enable <<std::endl;
-*/
-        cv::GComputation pipeline([]() {
+        cv::GComputation pipeline([=]() {
                 cv::GMat in;
 
                 cv::GMat detections = cv::gapi::infer<Faces>(in);
@@ -234,12 +207,12 @@ int main(int argc, char *argv[]) {
 
                 cv::GArray<cv::GMat> ages;
                 cv::GArray<cv::GMat> genders;
-                std::tie(ages, genders) = cv::gapi::infer<AgeGender>(faces, in);
+                if (age_gender_enable) std::tie(ages, genders) = cv::gapi::infer<AgeGender>(faces, in);
 
                 cv::GArray<cv::GMat> y_fc;
                 cv::GArray<cv::GMat> p_fc;
                 cv::GArray<cv::GMat> r_fc;
-                std::tie(y_fc, p_fc, r_fc) = cv::gapi::infer<HeadPose>(faces, in);
+                if (headpose_enable) std::tie(y_fc, p_fc, r_fc) = cv::gapi::infer<HeadPose>(faces, in);
 
                 cv::GArray<cv::GMat> landmarks = cv::gapi::infer<FacialLandmark>(faces, in);
 
@@ -250,10 +223,10 @@ int main(int argc, char *argv[]) {
                 cv::GProtoOutputArgs outs = GOut(frame);
                 outs += GOut(faces);
                 //outs += GOut(detections);
-                outs += GOut(ages, genders); 
-                outs += GOut(y_fc, p_fc, r_fc);
-                outs += GOut(emotions);
-                outs += GOut(landmarks);
+                if (age_gender_enable) outs += GOut(ages, genders); 
+                if (headpose_enable) outs += GOut(y_fc, p_fc, r_fc);
+                if (emotions_enable) outs += GOut(emotions);
+                if (landmarks_enable) outs += GOut(landmarks);
 
                 return cv::GComputation(cv::GIn(in), std::move(outs));
         });
@@ -309,16 +282,10 @@ int main(int argc, char *argv[]) {
         cv::GRunArgsP out_vector;
         AddGRunArgsP(out_vector, cv::gout(frame));
         AddGRunArgsP(out_vector, cv::gout(face_hub));
-        AddGRunArgsP(out_vector, cv::gout(out_ages, out_genders));
-        AddGRunArgsP(out_vector, cv::gout(out_y_fc, out_p_fc, out_r_fc));
-        AddGRunArgsP(out_vector, cv::gout(out_emotions));
-        AddGRunArgsP(out_vector, cv::gout(out_landmarks));
-//        cv::GRunArgsP out_vector = cv::gout(frame, face_hub, 
-//                                            out_detections,
-//                                            out_ages, out_genders,
-//                                            out_y_fc, out_p_fc, out_r_fc,
-//                                            out_emotions, out_landmarks);
-
+        if (age_gender_enable) AddGRunArgsP(out_vector, cv::gout(out_ages, out_genders));
+        if (headpose_enable) AddGRunArgsP(out_vector, cv::gout(out_y_fc, out_p_fc, out_r_fc));
+        if (emotions_enable) AddGRunArgsP(out_vector, cv::gout(out_emotions));
+        if (landmarks_enable) AddGRunArgsP(out_vector, cv::gout(out_landmarks));
 
         cv::namedWindow("Detection results");
 
@@ -386,45 +353,51 @@ int main(int argc, char *argv[]) {
                     face = std::make_shared<Face>(id++, rect);
                 }
 
-                face->ageGenderEnable(/*(ageGenderDetector.enabled() &&
-                                       i < ageGenderDetector.maxBatch)*/
-                                       true);            
-                face->updateGender(out_genders[i].at<float>(0));
-                face->updateAge(out_ages[i].at<float>(0) * 100);
-
-
-                face->headPoseEnable(/*(headPoseDetector.enabled() &&
-                                      i < headPoseDetector.maxBatch)*/true);
-                if (/*face->isHeadPoseEnabled()*/ true) {
-                    face->updateHeadPose({out_r_fc[i].at<float>(0),
-                                          out_p_fc[i].at<float>(0),
-                                          out_y_fc[i].at<float>(0)});
+                if (age_gender_enable) {
+                    face->ageGenderEnable(/*(ageGenderDetector.enabled() &&
+                                           i < ageGenderDetector.maxBatch)*/
+                                           true);            
+                    face->updateGender(out_genders[i].at<float>(0));
+                    face->updateAge(out_ages[i].at<float>(0) * 100);
                 }
 
-                face->emotionsEnable(/*(emotionsDetector.enabled() &&
-                                  i < emotionsDetector.maxBatch)*/ true);
-                face->updateEmotions({
-                                      {"neutral", out_emotions[i].at<float>(0)},
-                                      {"happy", out_emotions[i].at<float>(1)} ,
-                                      {"sad", out_emotions[i].at<float>(2)} ,
-                                      {"surprise", out_emotions[i].at<float>(3)}, 
-                                      {"anger", out_emotions[i].at<float>(4)}
-                                      });
-
-                face->landmarksEnable(/*(facialLandmarksDetector.enabled() &&
-                                       i < facialLandmarksDetector.maxBatch)*/ true);
-                std::vector<float> normedLandmarks;
-                int n_lm = 70;
-                for (auto i_lm = 0; i_lm < n_lm; ++i_lm) {
-                    float normed_x = out_landmarks[i].at<float>(2 * i_lm);
-                    float normed_y = out_landmarks[i].at<float>(2 * i_lm + 1);
-
-                    normedLandmarks.push_back(normed_x);
-                    normedLandmarks.push_back(normed_y);
+                if (headpose_enable) {
+                    face->headPoseEnable(/*(headPoseDetector.enabled() &&
+                                          i < headPoseDetector.maxBatch)*/true);
+                    if (/*face->isHeadPoseEnabled()*/ true) {
+                        face->updateHeadPose({out_r_fc[i].at<float>(0),
+                                              out_p_fc[i].at<float>(0),
+                                              out_y_fc[i].at<float>(0)});
+                    }
                 }
 
-                face->updateLandmarks(normedLandmarks);
+                if (emotions_enable) {
+                    face->emotionsEnable(/*(emotionsDetector.enabled() &&
+                                      i < emotionsDetector.maxBatch)*/ true);
+                    face->updateEmotions({
+                                          {"neutral", out_emotions[i].at<float>(0)},
+                                          {"happy", out_emotions[i].at<float>(1)} ,
+                                          {"sad", out_emotions[i].at<float>(2)} ,
+                                          {"surprise", out_emotions[i].at<float>(3)}, 
+                                          {"anger", out_emotions[i].at<float>(4)}
+                                          });
+                }
 
+                if (landmarks_enable) {
+                    face->landmarksEnable(/*(facialLandmarksDetector.enabled() &&
+                                           i < facialLandmarksDetector.maxBatch)*/ true);
+                    std::vector<float> normedLandmarks;
+                    int n_lm = 70;
+                    for (auto i_lm = 0; i_lm < n_lm; ++i_lm) {
+                        float normed_x = out_landmarks[i].at<float>(2 * i_lm);
+                        float normed_y = out_landmarks[i].at<float>(2 * i_lm + 1);
+
+                        normedLandmarks.push_back(normed_x);
+                        normedLandmarks.push_back(normed_y);
+                    }
+
+                    face->updateLandmarks(normedLandmarks);
+                }
                 // End of face postprocesing
 
                 faces.push_back(face);            
