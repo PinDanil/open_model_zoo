@@ -96,9 +96,9 @@ public:
         size_t frameIdx;
     };
 
-    explicit Visualizer(cv::Size const& imgSize, int leftPadding = 10, int rightPadding = 10, int topPadding = 75, int bottomPadding = 10);
+    explicit Visualizer(int leftPadding = 10, int rightPadding = 10, int topPadding = 75, int bottomPadding = 10);
 
-    void enableEmotionBar(std::vector<std::string> const& emotionNames);
+    void enableEmotionBar(const cv::Size inImgSize, std::vector<std::string> const& emotionNames);
     void draw(cv::Mat img, std::list<Face::Ptr> faces);
 
 private:

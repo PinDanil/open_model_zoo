@@ -35,10 +35,10 @@ public:
     const std::vector<float>& getLandmarks();
     size_t getId();
 
-    void ageGenderEnable(bool value);
-    void emotionsEnable(bool value);
-    void headPoseEnable(bool value);
-    void landmarksEnable(bool value);
+    void ageGenderEnable();
+    void emotionsEnable();
+    void headPoseEnable();
+    void landmarksEnable();
 
     bool isAgeGenderEnabled();
     bool isEmotionsEnabled();

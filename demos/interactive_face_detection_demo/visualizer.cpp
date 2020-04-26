@@ -159,31 +159,36 @@ void HeadPoseVisualizer::draw(cv::Mat& frame, cv::Point3f cpoint, HeadPoseResult
 }
 
 // Visualizer
-Visualizer::Visualizer(cv::Size const& imgSize, int leftPadding, int rightPadding, int topPadding, int bottomPadding):
+Visualizer::Visualizer(int leftPadding, int rightPadding, int topPadding, int bottomPadding):
         emotionVisualizer(nullptr), photoFrameVisualizer(std::make_shared<PhotoFrameVisualizer>()),
         headPoseVisualizer(std::make_shared<HeadPoseVisualizer>()),
-        nxcells(0), nycells(0), xstep(0), ystep(0), imgSize(imgSize), leftPadding(leftPadding),
+        nxcells(0), nycells(0), xstep(0), ystep(0), leftPadding(leftPadding),
         rightPadding(rightPadding), topPadding(topPadding), bottomPadding(bottomPadding), frameCounter(0) {}
 
-void Visualizer::enableEmotionBar(std::vector<std::string> const& emotionNames) {
-    emotionVisualizer = std::make_shared<EmotionBarVisualizer>(emotionNames);
-    emotionBarSize = emotionVisualizer->getSize();
+void Visualizer::enableEmotionBar(const cv::Size inImgSize, std::vector<std::string> const& emotionNames) {
+    if (inImgSize != imgSize) {
+        imgSize = inImgSize;
+        
+        emotionVisualizer = std::make_shared<EmotionBarVisualizer>(emotionNames);
+        emotionBarSize = emotionVisualizer->getSize();
 
-    cv::Size imgSizePadded;
-    imgSizePadded.width = imgSize.width - leftPadding - rightPadding;
-    imgSizePadded.height = imgSize.height - topPadding - bottomPadding;
+        cv::Size imgSizePadded;
+        imgSizePadded.width = imgSize.width - leftPadding - rightPadding;
+        imgSizePadded.height = imgSize.height - topPadding - bottomPadding;
 
-    nxcells = (imgSizePadded.width - 1) / emotionBarSize.width;
-    nycells = (imgSizePadded.height - 1) / emotionBarSize.height;
-    if (0 < nxcells && 0 < nycells) {
-        drawMap.create(nycells, nxcells, CV_8UC1);
+        nxcells = (imgSizePadded.width - 1) / emotionBarSize.width;
+        nycells = (imgSizePadded.height - 1) / emotionBarSize.height;
+        if (0 < nxcells && 0 < nycells) {
+            drawMap.create(nycells, nxcells, CV_8UC1);
 
-        xstep = imgSizePadded.width / nxcells;
-        ystep = imgSizePadded.height / nycells;
-    } else {
-        emotionVisualizer.reset();
-        std::cerr << "Disabling emotion bar due to small frame resolution to draw on\n";
+            xstep = imgSizePadded.width / nxcells;
+            ystep = imgSizePadded.height / nycells;
+        } else {
+            emotionVisualizer.reset();
+            std::cerr << "Disabling emotion bar due to small frame resolution to draw on\n";
+        }
     }
+    
 }
 
 void Visualizer::drawFace(cv::Mat& img, Face::Ptr f, bool drawEmotionBar) {

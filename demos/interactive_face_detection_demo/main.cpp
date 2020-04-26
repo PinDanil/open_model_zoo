@@ -286,34 +286,29 @@ int main(int argc, char *argv[]) {
         if (headpose_enable) AddGRunArgsP(out_vector, cv::gout(out_y_fc, out_p_fc, out_r_fc));
         if (emotions_enable) AddGRunArgsP(out_vector, cv::gout(out_emotions));
         if (landmarks_enable) AddGRunArgsP(out_vector, cv::gout(out_landmarks));
-
-        cv::namedWindow("Detection results");
-
-        stream.start();
-        stream.pull(std::move(out_vector));
-
-        const size_t width  = static_cast<size_t>(frame.cols);
-        const size_t height = static_cast<size_t>(frame.rows);
-
-        Timer timer;
  
+        cv::namedWindow("Detection results");
         Visualizer::Ptr visualizer;
         if (!FLAGS_no_show || !FLAGS_o.empty()) {
-            visualizer = std::make_shared<Visualizer>(cv::Size(width, height));
-            if (!FLAGS_no_show_emotion_bar /*&& emotionsDetector.enabled()*/) {
-                visualizer->enableEmotionBar({"neutral",
-                                              "happy",
-                                              "sad",
-                                              "surprise",
-                                              "anger"});
-            }
+            visualizer = std::make_shared<Visualizer>();
         }
 
+        Timer timer;
+
+        stream.start();
         while (stream.running())
         {
             timer.start("total");
         
             stream.pull(std::move(out_vector));
+
+            if (!FLAGS_no_show_emotion_bar && emotions_enable) {
+                visualizer->enableEmotionBar(frame.size(), {"neutral",
+                                                            "happy",
+                                                            "sad",
+                                                            "surprise",
+                                                            "anger"});
+            }
 
             if (!FLAGS_no_show && -1 != cv::waitKey(delay)) {
                 stream.stop();
@@ -330,11 +325,9 @@ int main(int argc, char *argv[]) {
 
             // For every detected face
             for (size_t i = 0; i < face_hub.size(); i++) {
-                //auto& result = prev_detection_results[i];
                 cv::Rect rect = face_hub[i] & cv::Rect({0, 0}, frame.size());
 
                 Face::Ptr face;
-                // wthat is this for??
                 if (!FLAGS_no_smooth) {
                     face = matchFace(rect, prev_faces);
                     float intensity_mean = calcMean(frame(rect));
@@ -354,26 +347,20 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (age_gender_enable) {
-                    face->ageGenderEnable(/*(ageGenderDetector.enabled() &&
-                                           i < ageGenderDetector.maxBatch)*/
-                                           true);            
+                    face->ageGenderEnable();            
                     face->updateGender(out_genders[i].at<float>(0));
                     face->updateAge(out_ages[i].at<float>(0) * 100);
                 }
 
                 if (headpose_enable) {
-                    face->headPoseEnable(/*(headPoseDetector.enabled() &&
-                                          i < headPoseDetector.maxBatch)*/true);
-                    if (/*face->isHeadPoseEnabled()*/ true) {
-                        face->updateHeadPose({out_r_fc[i].at<float>(0),
-                                              out_p_fc[i].at<float>(0),
-                                              out_y_fc[i].at<float>(0)});
-                    }
+                    face->headPoseEnable();
+                    face->updateHeadPose({out_r_fc[i].at<float>(0),
+                                          out_p_fc[i].at<float>(0),
+                                          out_y_fc[i].at<float>(0)});
                 }
 
                 if (emotions_enable) {
-                    face->emotionsEnable(/*(emotionsDetector.enabled() &&
-                                      i < emotionsDetector.maxBatch)*/ true);
+                    face->emotionsEnable();
                     face->updateEmotions({
                                           {"neutral", out_emotions[i].at<float>(0)},
                                           {"happy", out_emotions[i].at<float>(1)} ,
@@ -384,16 +371,12 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (landmarks_enable) {
-                    face->landmarksEnable(/*(facialLandmarksDetector.enabled() &&
-                                           i < facialLandmarksDetector.maxBatch)*/ true);
+                    face->landmarksEnable();
                     std::vector<float> normedLandmarks;
-                    int n_lm = 70;
-                    for (auto i_lm = 0; i_lm < n_lm; ++i_lm) {
-                        float normed_x = out_landmarks[i].at<float>(2 * i_lm);
-                        float normed_y = out_landmarks[i].at<float>(2 * i_lm + 1);
-
-                        normedLandmarks.push_back(normed_x);
-                        normedLandmarks.push_back(normed_y);
+                    size_t n_lm = 70;
+                    for (size_t i_lm = 0UL; i_lm < n_lm; ++i_lm) {
+                        normedLandmarks.push_back(out_landmarks[i].at<float>(2 * i_lm));
+                        normedLandmarks.push_back(out_landmarks[i].at<float>(2 * i_lm + 1));
                     }
 
                     face->updateLandmarks(normedLandmarks);

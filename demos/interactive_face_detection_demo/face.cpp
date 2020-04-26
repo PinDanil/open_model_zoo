@@ -81,17 +81,17 @@ size_t Face::getId() {
     return _id;
 }
 
-void Face::ageGenderEnable(bool value) {
-    _isAgeGenderEnabled = value;
+void Face::ageGenderEnable() {
+    _isAgeGenderEnabled = true;
 }
-void Face::emotionsEnable(bool value) {
-    _isEmotionsEnabled = value;
+void Face::emotionsEnable() {
+    _isEmotionsEnabled = true;
 }
-void Face::headPoseEnable(bool value) {
-    _isHeadPoseEnabled = value;
+void Face::headPoseEnable() {
+    _isHeadPoseEnabled = true;
 }
-void Face::landmarksEnable(bool value) {
-    _isLandmarksEnabled = value;
+void Face::landmarksEnable() {
+    _isLandmarksEnabled = true;
 }
 
 bool Face::isAgeGenderEnabled() {
