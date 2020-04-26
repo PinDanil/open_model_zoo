@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
                     if (image_id < 0.f) {  // indicates end of detections
                         break;
                     }
-                    if (confidence < 0.5f) { // fixme: hard-coded snapshot
+                    if (confidence < FLAGS_t) { // fixme: hard-coded snapshot
                         continue;
                     }
 
