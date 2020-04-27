@@ -17,7 +17,7 @@ Face::Face(size_t id, cv::Rect& location):
 }
 
 void Face::updateAge(float value) {
-    _age = (_age == -1) ? value : 0.95f * _age + 0.05f * value;
+    _age = value;
 }
 
 void Face::updateGender(float value) {
@@ -25,9 +25,9 @@ void Face::updateGender(float value) {
         return;
 
     if (value > 0.5) {
-        _maleScore += value - 0.5f;
+        _femaleScore += value - 0.5f;
     } else {
-        _femaleScore += 0.5f - value;
+        _maleScore += 0.5f - value;
     }
 }
 

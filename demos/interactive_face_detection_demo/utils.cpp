@@ -26,7 +26,7 @@
 #include <ext_list.hpp>
 #endif
 
-#include "detectors.hpp"
+#include "utils.hpp"
 
 using namespace InferenceEngine;
 

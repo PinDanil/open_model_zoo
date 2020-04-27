@@ -42,7 +42,7 @@
 
 
 #include "interactive_face_detection.hpp"
-#include "detectors.hpp"
+#include "utils.hpp"
 #include "face.hpp"
 #include "visualizer.hpp"
 
@@ -258,7 +258,6 @@ int main(int argc, char *argv[]) {
         cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
 
         cv::Mat frame;
-        //cv::Mat out_detections;
         std::vector<cv::Rect> face_hub;
         std::vector<cv::Mat> out_ages, out_genders;
         std::vector<cv::Mat> out_y_fc, out_p_fc, out_r_fc; 
@@ -266,7 +265,6 @@ int main(int argc, char *argv[]) {
         std::vector<cv::Mat> out_emotions;
     
         stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
-
 
         cv::GRunArgsP out_vector;
         AddGRunArgsP(out_vector, cv::gout(frame));
@@ -276,9 +274,9 @@ int main(int argc, char *argv[]) {
         if (emotions_enable) AddGRunArgsP(out_vector, cv::gout(out_emotions));
         if (landmarks_enable) AddGRunArgsP(out_vector, cv::gout(out_landmarks));
  
-        cv::namedWindow("Detection results");
         Visualizer::Ptr visualizer;
         if (!FLAGS_no_show) {
+            cv::namedWindow("Detection results");
             visualizer = std::make_shared<Visualizer>();
         }
 

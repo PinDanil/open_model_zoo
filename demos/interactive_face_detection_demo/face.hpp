@@ -11,7 +11,7 @@
 #include <vector>
 #include <opencv2/opencv.hpp>
 
-#include "detectors.hpp"
+#include "utils.hpp"
 
 // -------------------------Describe detected face on a frame-------------------------------------------------
 
