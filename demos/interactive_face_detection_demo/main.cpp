@@ -72,17 +72,6 @@ bool ParseAndCheckCommandLine(int argc, char *argv[]) {
         throw std::logic_error("Parameter -m is not set");
     }
 
-    if (FLAGS_n_ag < 1) {
-        throw std::logic_error("Parameter -n_ag cannot be 0");
-    }
-
-    if (FLAGS_n_hp < 1) {
-        throw std::logic_error("Parameter -n_hp cannot be 0");
-    }
-
-    // no need to wait for a key press from a user if an output image/video file is not shown.
-    FLAGS_no_wait |= FLAGS_no_show;
-
     return true;
 }
 
@@ -289,7 +278,7 @@ int main(int argc, char *argv[]) {
  
         cv::namedWindow("Detection results");
         Visualizer::Ptr visualizer;
-        if (!FLAGS_no_show || !FLAGS_o.empty()) {
+        if (!FLAGS_no_show) {
             visualizer = std::make_shared<Visualizer>();
         }
 
@@ -302,7 +291,7 @@ int main(int argc, char *argv[]) {
         
             stream.pull(std::move(out_vector));
 
-            if (!FLAGS_no_show_emotion_bar && emotions_enable) {
+            if (emotions_enable) {
                 visualizer->enableEmotionBar(frame.size(), {"neutral",
                                                             "happy",
                                                             "sad",
@@ -387,7 +376,7 @@ int main(int argc, char *argv[]) {
             }
 
             //  Visualizing results
-            if (!FLAGS_no_show || !FLAGS_o.empty()) {
+            if (!FLAGS_no_show) {
                 out.str("");
                 out << "Total image throughput: " << std::fixed << std::setprecision(2)
                     << 1000.f / (timer["total"].getSmoothedDuration()) << " fps";
@@ -410,6 +399,9 @@ int main(int argc, char *argv[]) {
                 delay = std::max(1, static_cast<int>(msrate - timer["total"].getLastCallDuration()));
             }
         }
+
+        slog::info << "Number of processed frames: " << framesCounter << slog::endl;
+        slog::info << "Total image throughput: " << framesCounter * (1000.f / timer["total"].getTotalDuration()) << " fps" << slog::endl;
 
         cv::destroyAllWindows();
     }
