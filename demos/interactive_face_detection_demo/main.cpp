@@ -185,6 +185,9 @@ int main(int argc, char *argv[]) {
         cv::GComputation pipeline([=]() {
                 cv::GMat in;
 
+                cv::GMat frame = cv::gapi::copy(in);
+                cv::GProtoOutputArgs outs = GOut(frame);
+
                 cv::GMat detections = cv::gapi::infer<Faces>(in);
 
                 cv::GArray<cv::Rect> faces = PostProc::on(detections, in);
@@ -202,9 +205,6 @@ int main(int argc, char *argv[]) {
 
                 cv::GArray<cv::GMat> emotions = cv::gapi::infer<Emotions>(faces, in);
 
-                cv::GMat frame = cv::gapi::copy(in);
-
-                cv::GProtoOutputArgs outs = GOut(frame);
                 outs += GOut(faces);
                 //outs += GOut(detections);
                 if (age_gender_enable) outs += GOut(ages, genders); 
