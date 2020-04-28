@@ -177,10 +177,10 @@ int main(int argc, char *argv[]) {
         }
         std::cout << std::endl;
 
-        bool age_gender_enable = !FLAGS_m_ag.empty() && !FLAGS_w_ag.empty() && !FLAGS_d_ag.empty();
-        bool headpose_enable = !FLAGS_m_hp.empty() && !FLAGS_w_hp.empty() && !FLAGS_d_hp.empty();
-        bool emotions_enable = !FLAGS_m_em.empty() && !FLAGS_w_em.empty() && !FLAGS_d_em.empty();
-        bool landmarks_enable = !FLAGS_m_lm.empty() && !FLAGS_w_lm.empty() && !FLAGS_d_lm.empty();
+        bool age_gender_enable = !FLAGS_m_ag.empty();
+        bool headpose_enable   = !FLAGS_m_hp.empty();
+        bool emotions_enable   = !FLAGS_m_em.empty();
+        bool landmarks_enable  = !FLAGS_m_lm.empty();
 
         cv::GComputation pipeline([=]() {
                 cv::GMat in;
@@ -224,17 +224,32 @@ int main(int argc, char *argv[]) {
         });
 
 
-        auto det_net = cv::gapi::ie::Params<Faces> { FLAGS_m, FLAGS_w, FLAGS_d };
+        std::string face_det_m = FLAGS_m;
+        std::string face_det_w = fileNameNoExt(FLAGS_m) + ".bin";
+        std::string face_det_d = FLAGS_d;
+        auto det_net = cv::gapi::ie::Params<Faces> { face_det_m, face_det_w, face_det_d };
 
-        auto age_net = cv::gapi::ie::Params<AgeGender> { FLAGS_m_ag, FLAGS_w_ag, FLAGS_d_ag }
+        std::string age_gen_det_m = FLAGS_m_ag;
+        std::string age_gen_det_w = fileNameNoExt(FLAGS_m_ag) + ".bin";
+        std::string age_gen_det_d = FLAGS_d_ag;
+        auto age_net = cv::gapi::ie::Params<AgeGender> { age_gen_det_m, age_gen_det_w, age_gen_det_d }
                                                             .cfgOutputLayers({ "age_conv3", "prob" });
 
-        auto hp_net = cv::gapi::ie::Params<HeadPose> { FLAGS_m_hp, FLAGS_w_hp, FLAGS_d_hp }
+        std::string head_pose_det_m = FLAGS_m_hp;
+        std::string head_pose_det_w = fileNameNoExt(FLAGS_w_hp) + ".bin";
+        std::string head_pose_det_d = FLAGS_d_hp;
+        auto hp_net = cv::gapi::ie::Params<HeadPose> { head_pose_det_m, head_pose_det_w, head_pose_det_d }
                                                         .cfgOutputLayers({ "angle_y_fc", "angle_p_fc", "angle_r_fc" });
 
-        auto lm_net = cv::gapi::ie::Params<FacialLandmark> { FLAGS_m_lm, FLAGS_w_lm, FLAGS_d_lm };
+        std::string landmarks_det_m = FLAGS_m_lm;
+        std::string landmarks_det_w = fileNameNoExt(FLAGS_m_lm) + ".bin";
+        std::string landmarks_det_d = FLAGS_d_lm;
+        auto lm_net = cv::gapi::ie::Params<FacialLandmark> { landmarks_det_m, landmarks_det_w, landmarks_det_d };
 
-        auto emo_net = cv::gapi::ie::Params<Emotions> { FLAGS_m_em, FLAGS_w_em, FLAGS_d_em };
+        std::string emo_det_m = FLAGS_m_em;
+        std::string emo_det_w = fileNameNoExt(FLAGS_m_em) + ".bin";
+        std::string emo_det_d = FLAGS_d_em;
+        auto emo_net = cv::gapi::ie::Params<Emotions> {  emo_det_m, emo_det_w, emo_det_d };
 
         // Form a kernel package (with a single OpenCV-based implementation of our
         // post-processing) and a network package (holding our three networks).x
