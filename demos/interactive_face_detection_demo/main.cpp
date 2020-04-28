@@ -191,26 +191,34 @@ int main(int argc, char *argv[]) {
                 cv::GMat detections = cv::gapi::infer<Faces>(in);
 
                 cv::GArray<cv::Rect> faces = PostProc::on(detections, in);
+                outs += GOut(faces);
 
                 cv::GArray<cv::GMat> ages;
                 cv::GArray<cv::GMat> genders;
-                if (age_gender_enable) std::tie(ages, genders) = cv::gapi::infer<AgeGender>(faces, in);
+                if (age_gender_enable) {
+                    std::tie(ages, genders) = cv::gapi::infer<AgeGender>(faces, in);
+                    outs += GOut(ages, genders);
+                }
 
                 cv::GArray<cv::GMat> y_fc;
                 cv::GArray<cv::GMat> p_fc;
                 cv::GArray<cv::GMat> r_fc;
-                if (headpose_enable) std::tie(y_fc, p_fc, r_fc) = cv::gapi::infer<HeadPose>(faces, in);
+                if (headpose_enable) {
+                    std::tie(y_fc, p_fc, r_fc) = cv::gapi::infer<HeadPose>(faces, in);
+                    outs += GOut(y_fc, p_fc, r_fc);
+                } 
 
-                cv::GArray<cv::GMat> landmarks = cv::gapi::infer<FacialLandmark>(faces, in);
+                cv::GArray<cv::GMat> emotions;
+                if (emotions_enable) {
+                    emotions = cv::gapi::infer<Emotions>(faces, in);
+                    outs += GOut(emotions);
+                }
 
-                cv::GArray<cv::GMat> emotions = cv::gapi::infer<Emotions>(faces, in);
-
-                outs += GOut(faces);
-                //outs += GOut(detections);
-                if (age_gender_enable) outs += GOut(ages, genders); 
-                if (headpose_enable) outs += GOut(y_fc, p_fc, r_fc);
-                if (emotions_enable) outs += GOut(emotions);
-                if (landmarks_enable) outs += GOut(landmarks);
+                cv::GArray<cv::GMat> landmarks; 
+                if (landmarks_enable) {
+                    landmarks = cv::gapi::infer<FacialLandmark>(faces, in);
+                    outs += GOut(landmarks);
+                }
 
                 return cv::GComputation(cv::GIn(in), std::move(outs));
         });
