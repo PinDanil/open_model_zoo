@@ -262,10 +262,8 @@ int main(int argc, char *argv[]) {
 
         stream.start();
         avg.start();
-        while (stream.running())
+        while (stream.pull(std::move(out_vector)))
         {
-            stream.pull(std::move(out_vector));
-
             if (!FLAGS_no_show && emotions_enable) {
                 visualizer->enableEmotionBar(frame.size(), {"neutral",
                                                             "happy",
@@ -274,7 +272,7 @@ int main(int argc, char *argv[]) {
                                                             "anger"});
             }
 
-            if (cv::waitKey(1) >= 0) break;
+            if (cv::waitKey(1) >= 0) stream.stop();
 
             //  Postprocessing
             std::list<Face::Ptr> prev_faces;
@@ -366,7 +364,6 @@ int main(int argc, char *argv[]) {
 
             framesCounter++;
         }
-        stream.stop();
 
         slog::info << "Number of processed frames: " << framesCounter << slog::endl;
         slog::info << "Total image throughput: " << avg.fps(framesCounter) << " fps" << slog::endl;
