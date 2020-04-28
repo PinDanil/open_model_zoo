@@ -84,8 +84,8 @@ G_API_NET(FacialLandmark, <cv::GMat(cv::GMat)>,   "facial-landmark-recoginition"
 
 G_API_NET(Emotions, <cv::GMat(cv::GMat)>, "emotions-recognition");
 
-G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.fd_postproc") {
-    static cv::GArrayDesc outMeta(const cv::GMatDesc &, const cv::GMatDesc &) {
+G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat, float)>, "custom.fd_postproc") {
+    static cv::GArrayDesc outMeta(const cv::GMatDesc &, const cv::GMatDesc &, int) {
         return cv::empty_array_desc();
     }
 };
@@ -93,6 +93,7 @@ G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.fd_postpr
 GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     static void run(const cv::Mat &in_ssd_result,
                     const cv::Mat &in_frame,
+                    float th,
                     std::vector<cv::Rect> &out_faces) {
         const auto &in_ssd_dims = in_ssd_result.size;
         CV_Assert(in_ssd_dims.dims() == 4u);
@@ -117,7 +118,7 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             if (image_id < 0.f) {  // indicates end of detections
                 break;
             }
-            if (confidence < 0.5f/*FLAGS_t*/) { // fixme: hard-coded snapshot
+            if (confidence < th) { // fixme: hard-coded snapshot
                 continue;
             }
 
@@ -135,7 +136,7 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             int bb_center_y = rc.y + bb_height / 2;
 
             int max_of_sizes = std::max(bb_width, bb_height);
-            
+
             //bb_enlarge_coefficient, dx_coef, dy_coef is a omz flags
             //usualy it's 1.2, 1.0 and 1.0
             float bb_enlarge_coefficient = 1.2;
@@ -190,7 +191,7 @@ int main(int argc, char *argv[]) {
 
                 cv::GMat detections = cv::gapi::infer<Faces>(in);
 
-                cv::GArray<cv::Rect> faces = PostProc::on(detections, in);
+                cv::GArray<cv::Rect> faces = PostProc::on(detections, in, FLAGS_t);
                 outs += GOut(faces);
 
                 cv::GArray<cv::GMat> ages;
@@ -206,7 +207,7 @@ int main(int argc, char *argv[]) {
                 if (headpose_enable) {
                     std::tie(y_fc, p_fc, r_fc) = cv::gapi::infer<HeadPose>(faces, in);
                     outs += GOut(y_fc, p_fc, r_fc);
-                } 
+                }
 
                 cv::GArray<cv::GMat> emotions;
                 if (emotions_enable) {
@@ -214,7 +215,7 @@ int main(int argc, char *argv[]) {
                     outs += GOut(emotions);
                 }
 
-                cv::GArray<cv::GMat> landmarks; 
+                cv::GArray<cv::GMat> landmarks;
                 if (landmarks_enable) {
                     landmarks = cv::gapi::infer<FacialLandmark>(faces, in);
                     outs += GOut(landmarks);
@@ -236,7 +237,7 @@ int main(int argc, char *argv[]) {
                                                             .cfgOutputLayers({ "age_conv3", "prob" });
 
         std::string head_pose_det_m = FLAGS_m_hp;
-        std::string head_pose_det_w = fileNameNoExt(FLAGS_w_hp) + ".bin";
+        std::string head_pose_det_w = fileNameNoExt(FLAGS_m_hp) + ".bin";
         std::string head_pose_det_d = FLAGS_d_hp;
         auto hp_net = cv::gapi::ie::Params<HeadPose> { head_pose_det_m, head_pose_det_w, head_pose_det_d }
                                                         .cfgOutputLayers({ "angle_y_fc", "angle_p_fc", "angle_r_fc" });
@@ -261,10 +262,10 @@ int main(int argc, char *argv[]) {
         cv::Mat frame;
         std::vector<cv::Rect> face_hub;
         std::vector<cv::Mat> out_ages, out_genders;
-        std::vector<cv::Mat> out_y_fc, out_p_fc, out_r_fc; 
+        std::vector<cv::Mat> out_y_fc, out_p_fc, out_r_fc;
         std::vector<cv::Mat> out_landmarks;
         std::vector<cv::Mat> out_emotions;
-    
+
         stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
 
         cv::GRunArgsP out_vector;
@@ -315,14 +316,14 @@ int main(int argc, char *argv[]) {
                     face = matchFace(rect, prev_faces);
                     float intensity_mean = calcMean(frame(rect));
                     intensity_mean += 1.0;
-            
+
                     if ((face == nullptr) ||
                         ((face != nullptr) && ((std::abs(intensity_mean - face->_intensity_mean) / face->_intensity_mean) > 0.07f))) {
                         face = std::make_shared<Face>(id++, rect);
                     } else {
                         prev_faces.remove(face);
                     }
-            
+
                     face->_intensity_mean = intensity_mean;
                     face->_location = rect;
                 } else {
@@ -330,7 +331,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (age_gender_enable) {
-                    face->ageGenderEnable();            
+                    face->ageGenderEnable();
                     face->updateGender(out_genders[i].at<float>(0));
                     face->updateAge(out_ages[i].at<float>(0) * 100);
                 }
@@ -348,7 +349,7 @@ int main(int argc, char *argv[]) {
                                           {"neutral", out_emotions[i].at<float>(0)},
                                           {"happy", out_emotions[i].at<float>(1)} ,
                                           {"sad", out_emotions[i].at<float>(2)} ,
-                                          {"surprise", out_emotions[i].at<float>(3)}, 
+                                          {"surprise", out_emotions[i].at<float>(3)},
                                           {"anger", out_emotions[i].at<float>(4)}
                                           });
                 }
@@ -366,7 +367,7 @@ int main(int argc, char *argv[]) {
                 }
                 // End of face postprocesing
 
-                faces.push_back(face);            
+                faces.push_back(face);
             }
 
             //  Visualizing results

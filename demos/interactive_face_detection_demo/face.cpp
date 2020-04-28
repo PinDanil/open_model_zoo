@@ -125,7 +125,7 @@ float calcMean(const cv::Mat& src) {
 Face::Ptr matchFace(cv::Rect rect, std::list<Face::Ptr>& faces) {
     Face::Ptr face(nullptr);
     float maxIoU = 0.55f;
-    
+
     for (auto&& f : faces) {
         float iou = calcIoU(rect, f->_location);
         if (iou > maxIoU) {

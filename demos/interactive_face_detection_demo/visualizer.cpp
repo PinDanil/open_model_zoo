@@ -168,7 +168,7 @@ Visualizer::Visualizer(int leftPadding, int rightPadding, int topPadding, int bo
 void Visualizer::enableEmotionBar(const cv::Size inImgSize, std::vector<std::string> const& emotionNames) {
     if (inImgSize != imgSize) {
         imgSize = inImgSize;
-        
+
         emotionVisualizer = std::make_shared<EmotionBarVisualizer>(emotionNames);
         emotionBarSize = emotionVisualizer->getSize();
 
@@ -188,7 +188,7 @@ void Visualizer::enableEmotionBar(const cv::Size inImgSize, std::vector<std::str
             std::cerr << "Disabling emotion bar due to small frame resolution to draw on\n";
         }
     }
-    
+
 }
 
 void Visualizer::drawFace(cv::Mat& img, Face::Ptr f, bool drawEmotionBar) {

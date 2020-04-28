@@ -23,13 +23,6 @@ static const char head_pose_model_message[] = "Optional. Path to an .xml file wi
 static const char emotions_model_message[] = "Optional. Path to an .xml file with a trained Emotions Recognition model.";
 static const char facial_landmarks_model_message[] = "Optional. Path to an .xml file with a trained Facial Landmarks Estimation model.";
 
-/// @brief message for model weights argument
-static const char face_detection_model_weights_message[] = "Required. Path to an .bin file with a trained Face Detection model.";
-static const char age_gender_model_weights_message[] = "Optional. Path to an .bin file with a trained Age/Gender Recognition model.";
-static const char head_pose_model_weights_message[] = "Optional. Path to an .bin file with a trained Head Pose Estimation model.";
-static const char emotions_model_weights_message[] = "Optional. Path to an .bin file with a trained Emotions Recognition model.";
-static const char facial_landmarks_model_weights_message[] = "Optional. Path to an .bin file with a trained Facial Landmarks Estimation model.";
-
 /// @brief Message for assigning face detection calculation to device
 static const char target_device_message[] = "Optional. Target device for Face Detection network (the list of available devices is shown below). " \
 "Default value is CPU. Use \"-d HETERO:<comma-separated_devices_list>\" format to specify HETERO plugin. " \
@@ -95,28 +88,6 @@ DEFINE_string(m_em, "", emotions_model_message);
 /// It is an optional parameter
 DEFINE_string(m_lm, "", facial_landmarks_model_message);
 
-
-/// \brief Define parameter for Face Detection model file<br>
-/// It is a required parameter
-DEFINE_string(w, "", face_detection_model_weights_message);
-
-/// \brief Define parameter for Age Gender Recognition model file<br>
-/// It is a optional parameter
-DEFINE_string(w_ag, "", age_gender_model_weights_message);
-
-/// \brief Define parameter for Head Pose Estimation model file<br>
-/// It is a optional parameter
-DEFINE_string(w_hp, "", head_pose_model_weights_message);
-
-/// \brief Define parameter for Emotions Recognition model file<br>
-/// It is a optional parameter
-DEFINE_string(w_em, "", emotions_model_weights_message);
-
-/// \brief Define parameter for Facial Landmarks Estimation model file<br>
-/// It is an optional parameter
-DEFINE_string(w_lm, "", facial_landmarks_model_weights_message);
-
-
 /// \brief target device for Face Detection network<br>
 DEFINE_string(d, "CPU", target_device_message);
 
@@ -135,10 +106,6 @@ DEFINE_string(d_lm, "CPU", target_device_message_lm);
 /// \brief Define a parameter for probability threshold for detections<br>
 /// It is an optional parameter
 DEFINE_double(t, 0.5, thresh_output_message);
-
-/// \brief Define a parameter to play video with defined fps<br>
-/// It is an optional parameter
-DEFINE_double(fps, -1, fps_output_message);
 
 /// \brief Define a flag to disable smoothing person attributes<br>
 /// It is an optional parameter
