@@ -49,33 +49,20 @@ struct HeadPoseResults {
     float angle_y;
 };
 
+struct Avg {
+    struct Elapsed {
+        explicit Elapsed(double ms) : ss(ms/1000.), mm(static_cast<int>(ss)/60) {}
+        const double ss;
+        const int    mm;
+    };
 
-class CallStat {
-public:
-    typedef std::chrono::duration<double, std::ratio<1, 1000>> ms;
+    using MS = std::chrono::duration<double, std::ratio<1, 1000>>;
+    using TS = std::chrono::time_point<std::chrono::high_resolution_clock>;
+    TS started;
 
-    CallStat();
-
-    double getSmoothedDuration();
-    double getTotalDuration();
-    double getLastCallDuration();
-    void calculateDuration();
-    void setStartTime();
-
-private:
-    size_t _number_of_calls;
-    double _total_duration;
-    double _last_call_duration;
-    double _smoothed_duration;
-    std::chrono::time_point<std::chrono::high_resolution_clock> _last_call_start;
-};
-
-class Timer {
-public:
-    void start(const std::string& name);
-    void finish(const std::string& name);
-    CallStat& operator[](const std::string& name);
-
-private:
-    std::map<std::string, CallStat> _timers;
+    void    start() { started = now(); }
+    TS      now() const { return std::chrono::high_resolution_clock::now(); }
+    double  tick() const { return std::chrono::duration_cast<MS>(now() - started).count(); }
+    Elapsed elapsed() const { return Elapsed{tick()}; }
+    double  fps(std::size_t n) const { return static_cast<double>(n) / (tick() / 1000.); }
 };

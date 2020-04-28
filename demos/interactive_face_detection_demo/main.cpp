@@ -167,15 +167,9 @@ int main(int argc, char *argv[]) {
 
         std::ostringstream out;
         size_t framesCounter = 0;
-        int delay = 1;
-        double msrate = -1;
         cv::Mat prev_frame, next_frame;
         std::list<Face::Ptr> faces;
         size_t id = 0;
-
-        if (FLAGS_fps > 0) {
-            msrate = 1000.f / FLAGS_fps;
-        }
 
         std::cout << "To close the application, press 'CTRL+C' here";
         if (!FLAGS_no_show) {
@@ -258,28 +252,18 @@ int main(int argc, char *argv[]) {
         if (emotions_enable)   out_vector += cv::gout(out_emotions);
         if (landmarks_enable)  out_vector += cv::gout(out_landmarks);
 
-/*
-        cv::GRunArgsP out_vector;
-        AddGRunArgsP(out_vector, cv::gout(frame));
-        AddGRunArgsP(out_vector, cv::gout(face_hub));
-        if (age_gender_enable) AddGRunArgsP(out_vector, cv::gout(out_ages, out_genders));
-        if (headpose_enable) AddGRunArgsP(out_vector, cv::gout(out_y_fc, out_p_fc, out_r_fc));
-        if (emotions_enable) AddGRunArgsP(out_vector, cv::gout(out_emotions));
-        if (landmarks_enable) AddGRunArgsP(out_vector, cv::gout(out_landmarks));
-*/
         Visualizer::Ptr visualizer;
         if (!FLAGS_no_show) {
             cv::namedWindow("Detection results");
             visualizer = std::make_shared<Visualizer>();
         }
 
-        Timer timer;
+        Avg avg;
 
         stream.start();
+        avg.start();
         while (stream.running())
         {
-            timer.start("total");
-
             stream.pull(std::move(out_vector));
 
             if (!FLAGS_no_show && emotions_enable) {
@@ -290,7 +274,7 @@ int main(int argc, char *argv[]) {
                                                             "anger"});
             }
 
-            if (cv::waitKey(delay) >= 0) break;
+            if (cv::waitKey(1) >= 0) break;
 
             //  Postprocessing
             std::list<Face::Ptr> prev_faces;
@@ -368,7 +352,7 @@ int main(int argc, char *argv[]) {
             if (!FLAGS_no_show) {
                 out.str("");
                 out << "Total image throughput: " << std::fixed << std::setprecision(2)
-                    << 1000.f / (timer["total"].getSmoothedDuration()) << " fps";
+                    << avg.fps(framesCounter) << " fps";
                 cv::putText(frame, out.str(), cv::Point2f(10, 45), cv::FONT_HERSHEY_TRIPLEX, 1.2,
                             cv::Scalar(255, 0, 0), 2);
 
@@ -381,17 +365,11 @@ int main(int argc, char *argv[]) {
             }
 
             framesCounter++;
-
-            timer.finish("total");
-
-            if (FLAGS_fps > 0) {
-                delay = std::max(1, static_cast<int>(msrate - timer["total"].getLastCallDuration()));
-            }
         }
         stream.stop();
 
         slog::info << "Number of processed frames: " << framesCounter << slog::endl;
-        slog::info << "Total image throughput: " << framesCounter * (1000.f / timer["total"].getTotalDuration()) << " fps" << slog::endl;
+        slog::info << "Total image throughput: " << avg.fps(framesCounter) << " fps" << slog::endl;
 
         cv::destroyAllWindows();
     }
