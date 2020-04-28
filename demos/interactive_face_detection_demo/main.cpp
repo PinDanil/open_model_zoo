@@ -28,9 +28,6 @@
 #include <samples/ocv_common.hpp>
 #include <samples/slog.hpp>
 
-#include "gapi_stuff.hpp"
-
-
 #include <opencv2/gapi.hpp>
 #include <opencv2/gapi/core.hpp>
 #include <opencv2/gapi/imgproc.hpp>
@@ -75,6 +72,85 @@ bool ParseAndCheckCommandLine(int argc, char *argv[]) {
     return true;
 }
 
+G_API_NET(Faces, <cv::GMat(cv::GMat)>, "face-detector");
+
+using AGInfo = std::tuple<cv::GMat, cv::GMat>;
+G_API_NET(AgeGender, <AGInfo(cv::GMat)>,   "age-gender-recoginition");
+
+using HPInfo = std::tuple<cv::GMat, cv::GMat, cv::GMat>;
+G_API_NET(HeadPose, <HPInfo(cv::GMat)>,   "head-pose-recoginition");
+
+G_API_NET(FacialLandmark, <cv::GMat(cv::GMat)>,   "facial-landmark-recoginition");
+
+G_API_NET(Emotions, <cv::GMat(cv::GMat)>, "emotions-recognition");
+
+G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.fd_postproc") {
+    static cv::GArrayDesc outMeta(const cv::GMatDesc &, const cv::GMatDesc &) {
+        return cv::empty_array_desc();
+    }
+};
+
+GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
+    static void run(const cv::Mat &in_ssd_result,
+                    const cv::Mat &in_frame,
+                    std::vector<cv::Rect> &out_faces) {
+        const int MAX_PROPOSALS = 200;
+        const int OBJECT_SIZE   =   7;
+        const cv::Size upscale = in_frame.size();
+        const cv::Rect surface({0,0}, upscale);
+
+        out_faces.clear();
+
+        const float *data = in_ssd_result.ptr<float>();
+        for (int i = 0; i < MAX_PROPOSALS; i++) {
+            const float image_id   = data[i * OBJECT_SIZE + 0]; // batch id
+            const float confidence = data[i * OBJECT_SIZE + 2];
+            const float rc_left    = data[i * OBJECT_SIZE + 3];
+            const float rc_top     = data[i * OBJECT_SIZE + 4];
+            const float rc_right   = data[i * OBJECT_SIZE + 5];
+            const float rc_bottom  = data[i * OBJECT_SIZE + 6];
+
+            if (image_id < 0.f) {  // indicates end of detections
+                break;
+            }
+            if (confidence < 0.5f/*FLAGS_t*/) { // fixme: hard-coded snapshot
+                continue;
+            }
+
+            cv::Rect rc;
+            rc.x      = static_cast<int>(rc_left   * upscale.width);
+            rc.y      = static_cast<int>(rc_top    * upscale.height);
+            rc.width  = static_cast<int>(rc_right  * upscale.width)  - rc.x;
+            rc.height = static_cast<int>(rc_bottom * upscale.height) - rc.y;
+
+            // Make square and enlarge face bounding box for more robust operation of face analytics networks
+            int bb_width = rc.width;
+            int bb_height = rc.height;
+
+            int bb_center_x = rc.x + bb_width / 2;
+            int bb_center_y = rc.y + bb_height / 2;
+
+            int max_of_sizes = std::max(bb_width, bb_height);
+            
+            //bb_enlarge_coefficient, dx_coef, dy_coef is a omz flags
+            //usualy it's 1.2, 1.0 and 1.0
+            float bb_enlarge_coefficient = 1.2;
+            float bb_dx_coefficient = 1.0;
+            float bb_dy_coefficient = 1.0;
+            int bb_new_width = static_cast<int>(bb_enlarge_coefficient * max_of_sizes);
+            int bb_new_height = static_cast<int>(bb_enlarge_coefficient * max_of_sizes);
+
+            rc.x = bb_center_x - static_cast<int>(std::floor(bb_dx_coefficient * bb_new_width / 2));
+            rc.y = bb_center_y - static_cast<int>(std::floor(bb_dy_coefficient * bb_new_height / 2));
+
+            rc.width = bb_new_width;
+            rc.height = bb_new_height;
+
+            out_faces.push_back(rc & surface);
+        }
+    }
+};
+
 int main(int argc, char *argv[]) {
     try {
         std::cout << "InferenceEngine: " << GetInferenceEngineVersion() << std::endl;
@@ -102,85 +178,6 @@ int main(int argc, char *argv[]) {
             std::cout << " or switch to the output window and press any key";
         }
         std::cout << std::endl;
-
-        G_API_NET(Faces, <cv::GMat(cv::GMat)>, "face-detector");
-
-        using AGInfo = std::tuple<cv::GMat, cv::GMat>;
-        G_API_NET(AgeGender, <AGInfo(cv::GMat)>,   "age-gender-recoginition");
-
-        using HPInfo = std::tuple<cv::GMat, cv::GMat, cv::GMat>;
-        G_API_NET(HeadPose, <HPInfo(cv::GMat)>,   "head-pose-recoginition");
-
-        G_API_NET(FacialLandmark, <cv::GMat(cv::GMat)>,   "facial-landmark-recoginition");
-
-        G_API_NET(Emotions, <cv::GMat(cv::GMat)>, "emotions-recognition");
-
-        G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.fd_postproc") {
-            static cv::GArrayDesc outMeta(const cv::GMatDesc &, const cv::GMatDesc &) {
-                return cv::empty_array_desc();
-            }
-        };
-
-        GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
-            static void run(const cv::Mat &in_ssd_result,
-                            const cv::Mat &in_frame,
-                            std::vector<cv::Rect> &out_faces) {
-                const int MAX_PROPOSALS = 200;
-                const int OBJECT_SIZE   =   7;
-                const cv::Size upscale = in_frame.size();
-                const cv::Rect surface({0,0}, upscale);
-
-                out_faces.clear();
-
-                const float *data = in_ssd_result.ptr<float>();
-                for (int i = 0; i < MAX_PROPOSALS; i++) {
-                    const float image_id   = data[i * OBJECT_SIZE + 0]; // batch id
-                    const float confidence = data[i * OBJECT_SIZE + 2];
-                    const float rc_left    = data[i * OBJECT_SIZE + 3];
-                    const float rc_top     = data[i * OBJECT_SIZE + 4];
-                    const float rc_right   = data[i * OBJECT_SIZE + 5];
-                    const float rc_bottom  = data[i * OBJECT_SIZE + 6];
-
-                    if (image_id < 0.f) {  // indicates end of detections
-                        break;
-                    }
-                    if (confidence < FLAGS_t) { // fixme: hard-coded snapshot
-                        continue;
-                    }
-
-                    cv::Rect rc;
-                    rc.x      = static_cast<int>(rc_left   * upscale.width);
-                    rc.y      = static_cast<int>(rc_top    * upscale.height);
-                    rc.width  = static_cast<int>(rc_right  * upscale.width)  - rc.x;
-                    rc.height = static_cast<int>(rc_bottom * upscale.height) - rc.y;
-
-                    // Make square and enlarge face bounding box for more robust operation of face analytics networks
-                    int bb_width = rc.width;
-                    int bb_height = rc.height;
-
-                    int bb_center_x = rc.x + bb_width / 2;
-                    int bb_center_y = rc.y + bb_height / 2;
-
-                    int max_of_sizes = std::max(bb_width, bb_height);
-            
-                    //bb_enlarge_coefficient, dx_coef, dy_coef is a omz flags
-                    //usualy it's 1.2, 1.0 and 1.0
-                    float bb_enlarge_coefficient = 1.2;
-                    float bb_dx_coefficient = 1.0;
-                    float bb_dy_coefficient = 1.0;
-                    int bb_new_width = static_cast<int>(bb_enlarge_coefficient * max_of_sizes);
-                    int bb_new_height = static_cast<int>(bb_enlarge_coefficient * max_of_sizes);
-
-                    rc.x = bb_center_x - static_cast<int>(std::floor(bb_dx_coefficient * bb_new_width / 2));
-                    rc.y = bb_center_y - static_cast<int>(std::floor(bb_dy_coefficient * bb_new_height / 2));
-
-                    rc.width = bb_new_width;
-                    rc.height = bb_new_height;
-
-                    out_faces.push_back(rc & surface);
-                }
-            }
-        };
 
         bool age_gender_enable = !FLAGS_m_ag.empty() && !FLAGS_w_ag.empty() && !FLAGS_d_ag.empty();
         bool headpose_enable = !FLAGS_m_hp.empty() && !FLAGS_w_hp.empty() && !FLAGS_d_hp.empty();
