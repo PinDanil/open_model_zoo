@@ -94,11 +94,15 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     static void run(const cv::Mat &in_ssd_result,
                     const cv::Mat &in_frame,
                     std::vector<cv::Rect> &out_faces) {
-        const int MAX_PROPOSALS = 200;
-        const int OBJECT_SIZE   =   7;
+        const auto &in_ssd_dims = in_ssd_result.size;
+        CV_Assert(in_ssd_dims.dims() == 4u);
+
+        const int MAX_PROPOSALS = in_ssd_dims[2];
+        const int OBJECT_SIZE   = in_ssd_dims[3];
+        CV_Assert(OBJECT_SIZE == 7);
+
         const cv::Size upscale = in_frame.size();
         const cv::Rect surface({0,0}, upscale);
-
         out_faces.clear();
 
         const float *data = in_ssd_result.ptr<float>();
@@ -217,35 +221,18 @@ int main(int argc, char *argv[]) {
                 return cv::GComputation(cv::GIn(in), std::move(outs));
         });
 
-        auto det_net = cv::gapi::ie::Params<Faces> {
-            FLAGS_m,   // read cmd args: path to topology IR
-            FLAGS_w,   // read cmd args: path to weights
-            FLAGS_d,   // read cmd args: device specifier
-        };
 
-        auto age_net = cv::gapi::ie::Params<AgeGender> {
-            FLAGS_m_ag,   // read cmd args: path to topology IR
-            FLAGS_w_ag,   // read cmd args: path to weights
-            FLAGS_d_ag,   // read cmd args: device specifier
-        }.cfgOutputLayers({ "age_conv3", "prob" });
+        auto det_net = cv::gapi::ie::Params<Faces> { FLAGS_m, FLAGS_w, FLAGS_d };
 
-        auto hp_net = cv::gapi::ie::Params<HeadPose> {
-            FLAGS_m_hp,   // read cmd args: path to topology IR
-            FLAGS_w_hp,   // read cmd args: path to weights
-            FLAGS_d_hp,   // read cmd args: device specifier
-        }.cfgOutputLayers({ "angle_y_fc", "angle_p_fc", "angle_r_fc" });
+        auto age_net = cv::gapi::ie::Params<AgeGender> { FLAGS_m_ag, FLAGS_w_ag, FLAGS_d_ag }
+                                                            .cfgOutputLayers({ "age_conv3", "prob" });
 
-        auto lm_net = cv::gapi::ie::Params<FacialLandmark> {
-            FLAGS_m_lm,   // read cmd args: path to topology IR
-            FLAGS_w_lm,   // read cmd args: path to weights
-            FLAGS_d_lm,   // read cmd args: device specifier
-        };
+        auto hp_net = cv::gapi::ie::Params<HeadPose> { FLAGS_m_hp, FLAGS_w_hp, FLAGS_d_hp }
+                                                        .cfgOutputLayers({ "angle_y_fc", "angle_p_fc", "angle_r_fc" });
 
-        auto emo_net = cv::gapi::ie::Params<Emotions> {
-            FLAGS_m_em,   // read cmd args: path to topology IR
-            FLAGS_w_em,   // read cmd args: path to weights
-            FLAGS_d_em,   // read cmd args: device specifier
-        };
+        auto lm_net = cv::gapi::ie::Params<FacialLandmark> { FLAGS_m_lm, FLAGS_w_lm, FLAGS_d_lm };
+
+        auto emo_net = cv::gapi::ie::Params<Emotions> { FLAGS_m_em, FLAGS_w_em, FLAGS_d_em };
 
         // Form a kernel package (with a single OpenCV-based implementation of our
         // post-processing) and a network package (holding our three networks).x
