@@ -251,13 +251,22 @@ int main(int argc, char *argv[]) {
         stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
 
         cv::GRunArgsP out_vector;
+        out_vector += cv::gout(frame);
+        out_vector += cv::gout(face_hub);
+        if (age_gender_enable) out_vector += cv::gout(out_ages, out_genders);
+        if (headpose_enable)   out_vector += cv::gout(out_y_fc, out_p_fc, out_r_fc);
+        if (emotions_enable)   out_vector += cv::gout(out_emotions);
+        if (landmarks_enable)  out_vector += cv::gout(out_landmarks);
+
+/*
+        cv::GRunArgsP out_vector;
         AddGRunArgsP(out_vector, cv::gout(frame));
         AddGRunArgsP(out_vector, cv::gout(face_hub));
         if (age_gender_enable) AddGRunArgsP(out_vector, cv::gout(out_ages, out_genders));
         if (headpose_enable) AddGRunArgsP(out_vector, cv::gout(out_y_fc, out_p_fc, out_r_fc));
         if (emotions_enable) AddGRunArgsP(out_vector, cv::gout(out_emotions));
         if (landmarks_enable) AddGRunArgsP(out_vector, cv::gout(out_landmarks));
- 
+*/
         Visualizer::Ptr visualizer;
         if (!FLAGS_no_show) {
             cv::namedWindow("Detection results");
