@@ -284,6 +284,8 @@ int main(int argc, char *argv[]) {
             std::cout<< "To close the application, press 'CTRL+C' here" << std::endl; 
         }
 
+        cv::VideoWriter videoWriter;
+
         Avg avg;
 
         stream.start();
@@ -386,7 +388,18 @@ int main(int argc, char *argv[]) {
                 if (cv::waitKey(1) >= 0) stream.stop();
             }
 
+            if (!FLAGS_o.empty() && !videoWriter.isOpened()) {
+                videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
+            }
+            if (!FLAGS_o.empty()) {
+                videoWriter.write(prev_frame);
+            }
+
             framesCounter++;
+        }
+
+        if (!FLAGS_o.empty()) {
+            videoWriter.release();
         }
 
         slog::info << "Number of processed frames: " << framesCounter << slog::endl;

@@ -16,6 +16,9 @@ static const char help_message[] = "Print a usage message";
 /// @brief Message for images argument
 static const char input_video_message[] = "Required. Path to a video file (specify \"cam\" to work with camera).";
 
+/// @brief Message for images argument
+static const char output_video_message[] = "Optional. Path to an output video file.";
+
 /// @brief message for model IR argument
 static const char face_detection_model_message[] = "Required. Path to an .xml file with a trained Face Detection model.";
 static const char age_gender_model_message[] = "Optional. Path to an .xml file with a trained Age/Gender Recognition model.";
@@ -70,6 +73,10 @@ DEFINE_bool(h, false, help_message);
 /// \brief Define parameter for set image file<br>
 /// It is a required parameter
 DEFINE_string(i, "", input_video_message);
+
+/// \brief Define parameter for an output video file<br>
+/// It is an optional parameter
+DEFINE_string(o, "", output_video_message);
 
 /// \brief Define parameter for Face Detection model file<br>
 /// It is a required parameter
@@ -133,6 +140,7 @@ static void showUsage() {
     std::cout << std::endl;
     std::cout << "    -h                         " << help_message << std::endl;
     std::cout << "    -i \"<path>\"                " << input_video_message << std::endl;
+    std::cout << "    -o \"<path>\"                " << output_video_message << std::endl;
     std::cout << "    -m \"<path>\"                " << face_detection_model_message<< std::endl;
     std::cout << "    -w \"<path>\"                " << face_detection_model_message<< std::endl;
     std::cout << "    -m_ag \"<path>\"             " << age_gender_model_message << std::endl;
