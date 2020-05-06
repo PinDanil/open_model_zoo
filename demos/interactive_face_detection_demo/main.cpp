@@ -280,7 +280,10 @@ int main(int argc, char *argv[]) {
         if (!FLAGS_no_show) {
             cv::namedWindow("Detection results");
             visualizer = std::make_shared<Visualizer>();
+        } else {
+            std::cout<< "To close the application, press 'CTRL+C' here" << std::endl; 
         }
+
 
         Avg avg;
 
@@ -295,8 +298,6 @@ int main(int argc, char *argv[]) {
                                                             "surprise",
                                                             "anger"});
             }
-
-            if (cv::waitKey(1) >= 0) stream.stop();
 
             //  Postprocessing
             std::list<Face::Ptr> prev_faces;
@@ -381,9 +382,9 @@ int main(int argc, char *argv[]) {
                 // drawing faces
                 visualizer->draw(frame, faces);
 
-                if (!FLAGS_no_show) {
-                    cv::imshow("Detection results", frame);
-                }
+                cv::imshow("Detection results", frame);
+
+                if (cv::waitKey(1) >= 0) stream.stop();
             }
 
             framesCounter++;
