@@ -60,6 +60,9 @@ static const char fps_output_message[] = "Optional. Maximum FPS for playing vide
 /// @brief Message for smooth argument
 static const char no_smooth_output_message[] = "Optional. Do not smooth person attributes";
 
+/// @brief Message for smooth argument
+static const char no_show_emotion_bar_message[] = "Optional. Do not show emotion bar";
+
 
 /// \brief Define flag for showing help message<br>
 DEFINE_bool(h, false, help_message);
@@ -115,6 +118,9 @@ DEFINE_bool(no_smooth, false, no_smooth_output_message);
 /// It is an optional parameter
 DEFINE_bool(no_show, false, no_show_processed_video);
 
+/// \brief Define a flag to disable showing emotion bar<br>
+/// It is an optional parameter
+DEFINE_bool(no_show_emotion_bar, false, no_show_emotion_bar_message);
 
 /**
 * \brief This function shows a help message
@@ -146,4 +152,5 @@ static void showUsage() {
     std::cout << "    -fps                       " << fps_output_message << std::endl;
     std::cout << "    -no_show                   " << no_show_processed_video << std::endl;
     std::cout << "    -no_smooth                 " << no_smooth_output_message << std::endl;
+    std::cout << "    -no_show_emotion_bar       " << no_show_emotion_bar_message << std::endl;
 }

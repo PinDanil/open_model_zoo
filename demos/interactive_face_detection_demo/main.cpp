@@ -284,14 +284,13 @@ int main(int argc, char *argv[]) {
             std::cout<< "To close the application, press 'CTRL+C' here" << std::endl; 
         }
 
-
         Avg avg;
 
         stream.start();
         avg.start();
         while (stream.pull(std::move(out_vector)))
         {
-            if (!FLAGS_no_show && emotions_enable) {
+            if (!FLAGS_no_show && emotions_enable && !FLAGS_no_show_emotion_bar) {
                 visualizer->enableEmotionBar(frame.size(), {"neutral",
                                                             "happy",
                                                             "sad",
