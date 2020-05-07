@@ -16,6 +16,10 @@ Face::Face(size_t id, cv::Rect& location):
     _isAgeGenderEnabled(false), _isEmotionsEnabled(false), _isHeadPoseEnabled(false), _isLandmarksEnabled(false) {
 }
 
+void Face::updateConfidence(float value) {
+    _confidence = value;
+}
+
 void Face::updateAge(float value) {
     _age = value;
 }

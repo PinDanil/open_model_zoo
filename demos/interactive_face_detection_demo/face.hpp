@@ -21,6 +21,7 @@ public:
 
     explicit Face(size_t id, cv::Rect& location);
 
+    void updateConfidence(float value);
     void updateAge(float value);
     void updateGender(float value);
     void updateEmotions(std::map<std::string, float> values);
@@ -49,8 +50,8 @@ public:
     cv::Rect _location;
     float _intensity_mean;
 
-private:
     size_t _id;
+    float _confidence;
     float _age;
     float _maleScore;
     float _femaleScore;
@@ -58,6 +59,7 @@ private:
     HeadPoseResults _headPose;
     std::vector<float> _landmarks;
 
+private:
     bool _isAgeGenderEnabled;
     bool _isEmotionsEnabled;
     bool _isHeadPoseEnabled;

@@ -140,11 +140,6 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
 
             int max_of_sizes = std::max(bb_width, bb_height);
 
-            //bb_enlarge_coefficient, dx_coef, dy_coef is a omz flags
-            //usualy it's 1.2, 1.0 and 1.0
-            // float bb_enlarge_coefficient = 1.2;
-            // float bb_dx_coefficient = 1.0;
-            // float bb_dy_coefficient = 1.0;
             int bb_new_width = static_cast<int>(bb_enlarge_coefficient * max_of_sizes);
             int bb_new_height = static_cast<int>(bb_enlarge_coefficient * max_of_sizes);
 
@@ -337,6 +332,13 @@ int main(int argc, char *argv[]) {
                 } else {
                     face = std::make_shared<Face>(id++, rect);
                 }
+                if (FLAGS_r) {
+                    std::cout << "[" << i << "," << face->_id << "] element, prob = " << face->_confidence <<
+                         "    (" << face->_location.x << "," << face->_location.y << ")-(" << face->_location.width << ","
+                      << face->_location.height << ")"
+                      << ((face->_confidence > FLAGS_t) ? " WILL BE RENDERED!" : "") << std::endl;
+                } 
+
 
                 if (age_gender_enable) {
                     face->ageGenderEnable();

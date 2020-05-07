@@ -57,6 +57,9 @@ static const char thresh_output_message[] = "Optional. Probability threshold for
 /// @brief Message for face enlarge coefficient argument
 static const char bb_enlarge_coef_output_message[] = "Optional. Coefficient to enlarge/reduce the size of the bounding box around the detected face";
 
+/// @brief Message raw output flag
+static const char raw_output_message[] = "Optional. Output inference results as raw values";
+
 /// @brief Message do not show processed video
 static const char no_show_processed_video[] = "Optional. Do not show processed video.";
 
@@ -130,6 +133,10 @@ DEFINE_double(t, 0.5, thresh_output_message);
 /// It is an optional parameter
 DEFINE_double(bb_enlarge_coef, 1.2, bb_enlarge_coef_output_message);
 
+/// \brief Define a flag to output raw scoring results<br>
+/// It is an optional parameter
+DEFINE_bool(r, false, raw_output_message);
+
 /// \brief Define a flag to disable smoothing person attributes<br>
 /// It is an optional parameter
 DEFINE_bool(no_smooth, false, no_smooth_output_message);
@@ -179,6 +186,7 @@ static void showUsage() {
     std::cout << "    -d_lm \"<device>\"           " << target_device_message_lm << std::endl;
     std::cout << "    -t                           " << thresh_output_message << std::endl;
     std::cout << "    -bb_enlarge_coef             " << bb_enlarge_coef_output_message << std::endl;
+    std::cout << "    -r                           " << raw_output_message << std::endl;
     std::cout << "    -fps                         " << fps_output_message << std::endl;
     std::cout << "    -no_show                     " << no_show_processed_video << std::endl;
     std::cout << "    -dx_coef                     " << dx_coef_output_message << std::endl;
