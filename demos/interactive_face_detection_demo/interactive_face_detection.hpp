@@ -54,8 +54,17 @@ static const char target_device_message_lm[] = "Optional. Target device for Faci
 /// @brief Message for probability threshold argument
 static const char thresh_output_message[] = "Optional. Probability threshold for detections";
 
+/// @brief Message for face enlarge coefficient argument
+static const char bb_enlarge_coef_output_message[] = "Optional. Coefficient to enlarge/reduce the size of the bounding box around the detected face";
+
 /// @brief Message do not show processed video
 static const char no_show_processed_video[] = "Optional. Do not show processed video.";
+
+/// @brief Message for shifting coefficient by dx for detected faces
+static const char dx_coef_output_message[] = "Optional. Coefficient to shift the bounding box around the detected face along the Ox axis";
+
+/// @brief Message for shifting coefficient by dy for detected faces
+static const char dy_coef_output_message[] = "Optional. Coefficient to shift the bounding box around the detected face along the Oy axis";
 
 /// @brief Message for fps argument
 static const char fps_output_message[] = "Optional. Maximum FPS for playing video";
@@ -117,6 +126,10 @@ DEFINE_string(d_lm, "CPU", target_device_message_lm);
 /// It is an optional parameter
 DEFINE_double(t, 0.5, thresh_output_message);
 
+/// \brief Define a parameter to enlarge the bounding box around the detected face for more robust operation of face analytics networks<br>
+/// It is an optional parameter
+DEFINE_double(bb_enlarge_coef, 1.2, bb_enlarge_coef_output_message);
+
 /// \brief Define a flag to disable smoothing person attributes<br>
 /// It is an optional parameter
 DEFINE_bool(no_smooth, false, no_smooth_output_message);
@@ -124,6 +137,14 @@ DEFINE_bool(no_smooth, false, no_smooth_output_message);
 /// \brief Define a flag to disable showing processed video<br>
 /// It is an optional parameter
 DEFINE_bool(no_show, false, no_show_processed_video);
+
+/// \brief Define a parameter to shift face bounding box by Ox for more robust operation of face analytics networks<br>
+/// It is an optional parameter
+DEFINE_double(dx_coef, 1, dx_coef_output_message);
+
+/// \brief Define a parameter to shift face bounding box by Oy for more robust operation of face analytics networks<br>
+/// It is an optional parameter
+DEFINE_double(dy_coef, 1, dy_coef_output_message);
 
 /// \brief Define a flag to disable showing emotion bar<br>
 /// It is an optional parameter
@@ -138,7 +159,7 @@ static void showUsage() {
     std::cout << "interactive_face_detection [OPTION]" << std::endl;
     std::cout << "Options:" << std::endl;
     std::cout << std::endl;
-    std::cout << "    -h                         " << help_message << std::endl;
+    std::cout << "    -h                           " << help_message << std::endl;
     std::cout << "    -i \"<path>\"                " << input_video_message << std::endl;
     std::cout << "    -o \"<path>\"                " << output_video_message << std::endl;
     std::cout << "    -m \"<path>\"                " << face_detection_model_message<< std::endl;
@@ -156,9 +177,12 @@ static void showUsage() {
     std::cout << "    -d_hp \"<device>\"           " << target_device_message_hp << std::endl;
     std::cout << "    -d_em \"<device>\"           " << target_device_message_em << std::endl;
     std::cout << "    -d_lm \"<device>\"           " << target_device_message_lm << std::endl;
-    std::cout << "    -t                         " << thresh_output_message << std::endl;
-    std::cout << "    -fps                       " << fps_output_message << std::endl;
-    std::cout << "    -no_show                   " << no_show_processed_video << std::endl;
-    std::cout << "    -no_smooth                 " << no_smooth_output_message << std::endl;
-    std::cout << "    -no_show_emotion_bar       " << no_show_emotion_bar_message << std::endl;
+    std::cout << "    -t                           " << thresh_output_message << std::endl;
+    std::cout << "    -bb_enlarge_coef             " << bb_enlarge_coef_output_message << std::endl;
+    std::cout << "    -fps                         " << fps_output_message << std::endl;
+    std::cout << "    -no_show                     " << no_show_processed_video << std::endl;
+    std::cout << "    -dx_coef                     " << dx_coef_output_message << std::endl;
+    std::cout << "    -dy_coef                     " << dy_coef_output_message << std::endl;
+    std::cout << "    -no_smooth                   " << no_smooth_output_message << std::endl;
+    std::cout << "    -no_show_emotion_bar         " << no_show_emotion_bar_message << std::endl;
 }

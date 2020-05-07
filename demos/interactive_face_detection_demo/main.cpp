@@ -84,8 +84,8 @@ G_API_NET(FacialLandmark, <cv::GMat(cv::GMat)>,   "facial-landmark-recoginition"
 
 G_API_NET(Emotions, <cv::GMat(cv::GMat)>, "emotions-recognition");
 
-G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat, float)>, "custom.fd_postproc") {
-    static cv::GArrayDesc outMeta(const cv::GMatDesc &, const cv::GMatDesc &, int) {
+G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat, float, float, float, float)>, "custom.fd_postproc") {
+    static cv::GArrayDesc outMeta(const cv::GMatDesc &, const cv::GMatDesc &, float, float, float, float) {
         return cv::empty_array_desc();
     }
 };
@@ -93,7 +93,10 @@ G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat, float)>, "custom.fd
 GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     static void run(const cv::Mat &in_ssd_result,
                     const cv::Mat &in_frame,
-                    float th,
+                    float threshold,
+                    float bb_enlarge_coefficient,
+                    float bb_dx_coefficient,
+                    float bb_dy_coefficient,
                     std::vector<cv::Rect> &out_faces) {
         const auto &in_ssd_dims = in_ssd_result.size;
         CV_Assert(in_ssd_dims.dims() == 4u);
@@ -118,7 +121,7 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
             if (image_id < 0.f) {  // indicates end of detections
                 break;
             }
-            if (confidence < th) { // fixme: hard-coded snapshot
+            if (confidence < threshold) {
                 continue;
             }
 
@@ -139,9 +142,9 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
 
             //bb_enlarge_coefficient, dx_coef, dy_coef is a omz flags
             //usualy it's 1.2, 1.0 and 1.0
-            float bb_enlarge_coefficient = 1.2;
-            float bb_dx_coefficient = 1.0;
-            float bb_dy_coefficient = 1.0;
+            // float bb_enlarge_coefficient = 1.2;
+            // float bb_dx_coefficient = 1.0;
+            // float bb_dy_coefficient = 1.0;
             int bb_new_width = static_cast<int>(bb_enlarge_coefficient * max_of_sizes);
             int bb_new_height = static_cast<int>(bb_enlarge_coefficient * max_of_sizes);
 
@@ -191,7 +194,11 @@ int main(int argc, char *argv[]) {
 
                 cv::GMat detections = cv::gapi::infer<Faces>(in);
 
-                cv::GArray<cv::Rect> faces = PostProc::on(detections, in, FLAGS_t);
+                cv::GArray<cv::Rect> faces = PostProc::on(detections, in,
+                                                          FLAGS_t,
+                                                          FLAGS_bb_enlarge_coef,
+                                                          FLAGS_dx_coef,
+                                                          FLAGS_dy_coef);
                 outs += GOut(faces);
 
                 cv::GArray<cv::GMat> ages;
@@ -223,7 +230,6 @@ int main(int argc, char *argv[]) {
 
                 return cv::GComputation(cv::GIn(in), std::move(outs));
         });
-
 
         std::string face_det_m = FLAGS_m;
         std::string face_det_w = fileNameNoExt(FLAGS_m) + ".bin";
