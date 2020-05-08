@@ -291,8 +291,43 @@ int main(int argc, char *argv[]) {
 
         stream.start();
         avg.start();
-        while (stream.pull(std::move(out_vector)))
+        while (stream.running())
         {
+            if (!stream.pull(std::move(out_vector))) {
+                std::cout<<"End of streaming" << std::endl;
+                if(FLAGS_loop_video) {
+                    stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
+                    stream.start();
+                } else if (!FLAGS_no_wait) {
+                    std::cout << "No more frames to process!" << std::endl;
+                    cv::waitKey(0);
+                }
+            } else {
+                framesCounter++;
+            }
+
+            // // End of file (or a single frame file like an image). The last frame is displayed to let you check what is shown
+            // if (!stream.pull(std::move(out_vector))) {
+            //     if (!FLAGS_no_wait) {
+            //         std::cout << "No more frames to process!" << std::endl;
+            //         cv::waitKey(0);
+            //     }
+            //     break;
+            // } else if (!FLAGS_no_show && -1 != cv::waitKey(1)) {
+            //     break;
+            // }
+
+            // // Reading the next frame if the current one is not the last
+            // if (!isLastFrame) {
+            //     frameReadStatus = cap.read(next_frame);
+            //     if (FLAGS_loop_video && !frameReadStatus) {
+            //         if (!(FLAGS_i == "cam" ? cap.open(0) : cap.open(FLAGS_i))) {
+            //             throw std::logic_error("Cannot open input file or camera: " + FLAGS_i);
+            //         }
+            //         frameReadStatus = cap.read(next_frame);
+            //     }
+            // }
+
             if (!FLAGS_no_show && emotions_enable && !FLAGS_no_show_emotion_bar) {
                 visualizer->enableEmotionBar(frame.size(), {"neutral",
                                                             "happy",
@@ -402,8 +437,6 @@ int main(int argc, char *argv[]) {
             if (!FLAGS_o.empty()) {
                 videoWriter.write(prev_frame);
             }
-
-            framesCounter++;
         }
 
         if (!FLAGS_o.empty()) {

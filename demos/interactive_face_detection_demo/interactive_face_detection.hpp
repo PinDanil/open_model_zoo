@@ -60,6 +60,9 @@ static const char bb_enlarge_coef_output_message[] = "Optional. Coefficient to e
 /// @brief Message raw output flag
 static const char raw_output_message[] = "Optional. Output inference results as raw values";
 
+/// @brief Message do not wait for keypress after input stream completed
+static const char no_wait_for_keypress_message[] = "Optional. Do not wait for key press in the end.";
+
 /// @brief Message do not show processed video
 static const char no_show_processed_video[] = "Optional. Do not show processed video.";
 
@@ -71,6 +74,9 @@ static const char dy_coef_output_message[] = "Optional. Coefficient to shift the
 
 /// @brief Message for fps argument
 static const char fps_output_message[] = "Optional. Maximum FPS for playing video";
+
+/// @brief Message for looping video argument
+static const char loop_video_output_message[] = "Optional. Enable playing video on a loop";
 
 /// @brief Message for smooth argument
 static const char no_smooth_output_message[] = "Optional. Do not smooth person attributes";
@@ -133,6 +139,10 @@ DEFINE_double(t, 0.5, thresh_output_message);
 /// It is an optional parameter
 DEFINE_double(bb_enlarge_coef, 1.2, bb_enlarge_coef_output_message);
 
+/// \brief Define a flag to disable keypress exit<br>
+/// It is an optional parameter
+DEFINE_bool(no_wait, false, no_wait_for_keypress_message);
+
 /// \brief Define a flag to output raw scoring results<br>
 /// It is an optional parameter
 DEFINE_bool(r, false, raw_output_message);
@@ -152,6 +162,10 @@ DEFINE_double(dx_coef, 1, dx_coef_output_message);
 /// \brief Define a parameter to shift face bounding box by Oy for more robust operation of face analytics networks<br>
 /// It is an optional parameter
 DEFINE_double(dy_coef, 1, dy_coef_output_message);
+
+/// \brief Define a flag to loop video<br>
+/// It is an optional parameter
+DEFINE_bool(loop_video, false, loop_video_output_message);
 
 /// \brief Define a flag to disable showing emotion bar<br>
 /// It is an optional parameter
@@ -186,11 +200,13 @@ static void showUsage() {
     std::cout << "    -d_lm \"<device>\"           " << target_device_message_lm << std::endl;
     std::cout << "    -t                           " << thresh_output_message << std::endl;
     std::cout << "    -bb_enlarge_coef             " << bb_enlarge_coef_output_message << std::endl;
+    std::cout << "    -no_wait                     " << no_wait_for_keypress_message << std::endl;
     std::cout << "    -r                           " << raw_output_message << std::endl;
     std::cout << "    -fps                         " << fps_output_message << std::endl;
     std::cout << "    -no_show                     " << no_show_processed_video << std::endl;
     std::cout << "    -dx_coef                     " << dx_coef_output_message << std::endl;
     std::cout << "    -dy_coef                     " << dy_coef_output_message << std::endl;
+    std::cout << "    -loop_video                  " << loop_video_output_message << std::endl;
     std::cout << "    -no_smooth                   " << no_smooth_output_message << std::endl;
     std::cout << "    -no_show_emotion_bar         " << no_show_emotion_bar_message << std::endl;
 }
