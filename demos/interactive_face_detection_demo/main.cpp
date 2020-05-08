@@ -154,6 +154,85 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     }
 };
 
+void resultProcessing(cv::Mat frame,
+                      std::list<Face::Ptr> &faces, std::list<Face::Ptr> &prev_faces,
+                      std::vector<cv::Rect> &face_hub,
+                      bool age_gender_enable,
+                      std::vector<cv::Mat> &out_ages, std::vector<cv::Mat> &out_genders,
+                      bool headpose_enable,
+                      std::vector<cv::Mat> &out_y_fc,
+                      std::vector<cv::Mat> &out_p_fc,
+                      std::vector<cv::Mat> &out_r_fc,
+                      bool landmarks_enable,
+                      std::vector<cv::Mat> &out_landmarks,
+                      bool emotions_enable,
+                      std::vector<cv::Mat> &out_emotions,
+                      size_t &id,
+                      bool no_smooth) {
+    // For every detected face
+    for (size_t i = 0; i < face_hub.size(); i++) {
+        cv::Rect rect = face_hub[i] & cv::Rect({0, 0}, frame.size());
+
+        Face::Ptr face;
+        if (!no_smooth) {
+            face = matchFace(rect, prev_faces);
+            float intensity_mean = calcMean(frame(rect));
+            intensity_mean += 1.0;
+
+            if ((face == nullptr) ||
+                ((face != nullptr) && ((std::abs(intensity_mean - face->_intensity_mean) / face->_intensity_mean) > 0.07f))) {
+                face = std::make_shared<Face>(id++, rect);
+            } else {
+                prev_faces.remove(face);
+            }
+
+            face->_intensity_mean = intensity_mean;
+            face->_location = rect;
+        } else {
+            face = std::make_shared<Face>(id++, rect);
+        }
+
+        if (age_gender_enable) {
+            face->ageGenderEnable();
+            face->updateGender(out_genders[i].at<float>(0));
+            face->updateAge(out_ages[i].at<float>(0) * 100);
+        }
+
+        if (headpose_enable) {
+            face->headPoseEnable();
+            face->updateHeadPose({out_r_fc[i].at<float>(0),
+                                  out_p_fc[i].at<float>(0),
+                                  out_y_fc[i].at<float>(0)});
+        }
+
+        if (emotions_enable) {
+            face->emotionsEnable();
+            face->updateEmotions({
+                                  {"neutral", out_emotions[i].at<float>(0)},
+                                  {"happy", out_emotions[i].at<float>(1)} ,
+                                  {"sad", out_emotions[i].at<float>(2)} ,
+                                  {"surprise", out_emotions[i].at<float>(3)},
+                                  {"anger", out_emotions[i].at<float>(4)}
+                                  });
+        }
+
+        if (landmarks_enable) {
+            face->landmarksEnable();
+            std::vector<float> normedLandmarks;
+            size_t n_lm = 70;
+            for (size_t i_lm = 0UL; i_lm < n_lm; ++i_lm) {
+                normedLandmarks.push_back(out_landmarks[i].at<float>(2 * i_lm));
+                normedLandmarks.push_back(out_landmarks[i].at<float>(2 * i_lm + 1));
+            }
+
+            face->updateLandmarks(normedLandmarks);
+        }
+        // End of face postprocesing
+
+        faces.push_back(face);
+    }
+}
+
 int main(int argc, char *argv[]) {
     try {
         std::cout << "InferenceEngine: " << GetInferenceEngineVersion() << std::endl;
@@ -294,6 +373,7 @@ int main(int argc, char *argv[]) {
         while (stream.running())
         {
             timer.start("total");
+
             if (!stream.pull(std::move(out_vector))) {
                 std::cout<<"End of streaming" << std::endl;
                 if(FLAGS_loop_video) {
@@ -324,68 +404,13 @@ int main(int argc, char *argv[]) {
 
             faces.clear();
 
-            // For every detected face
-            for (size_t i = 0; i < face_hub.size(); i++) {
-                cv::Rect rect = face_hub[i] & cv::Rect({0, 0}, frame.size());
-
-                Face::Ptr face;
-                if (!FLAGS_no_smooth) {
-                    face = matchFace(rect, prev_faces);
-                    float intensity_mean = calcMean(frame(rect));
-                    intensity_mean += 1.0;
-
-                    if ((face == nullptr) ||
-                        ((face != nullptr) && ((std::abs(intensity_mean - face->_intensity_mean) / face->_intensity_mean) > 0.07f))) {
-                        face = std::make_shared<Face>(id++, rect);
-                    } else {
-                        prev_faces.remove(face);
-                    }
-
-                    face->_intensity_mean = intensity_mean;
-                    face->_location = rect;
-                } else {
-                    face = std::make_shared<Face>(id++, rect);
-                }
-
-                if (age_gender_enable) {
-                    face->ageGenderEnable();
-                    face->updateGender(out_genders[i].at<float>(0));
-                    face->updateAge(out_ages[i].at<float>(0) * 100);
-                }
-
-                if (headpose_enable) {
-                    face->headPoseEnable();
-                    face->updateHeadPose({out_r_fc[i].at<float>(0),
-                                          out_p_fc[i].at<float>(0),
-                                          out_y_fc[i].at<float>(0)});
-                }
-
-                if (emotions_enable) {
-                    face->emotionsEnable();
-                    face->updateEmotions({
-                                          {"neutral", out_emotions[i].at<float>(0)},
-                                          {"happy", out_emotions[i].at<float>(1)} ,
-                                          {"sad", out_emotions[i].at<float>(2)} ,
-                                          {"surprise", out_emotions[i].at<float>(3)},
-                                          {"anger", out_emotions[i].at<float>(4)}
-                                          });
-                }
-
-                if (landmarks_enable) {
-                    face->landmarksEnable();
-                    std::vector<float> normedLandmarks;
-                    size_t n_lm = 70;
-                    for (size_t i_lm = 0UL; i_lm < n_lm; ++i_lm) {
-                        normedLandmarks.push_back(out_landmarks[i].at<float>(2 * i_lm));
-                        normedLandmarks.push_back(out_landmarks[i].at<float>(2 * i_lm + 1));
-                    }
-
-                    face->updateLandmarks(normedLandmarks);
-                }
-                // End of face postprocesing
-
-                faces.push_back(face);
-            }
+            resultProcessing(frame,
+                             faces, prev_faces, face_hub,
+                             age_gender_enable, out_ages, out_genders,
+                             headpose_enable, out_y_fc, out_p_fc, out_r_fc,
+                             landmarks_enable, out_landmarks,
+                             emotions_enable, out_emotions,
+                             id, FLAGS_no_smooth);
 
             //  Visualizing results
             if (!FLAGS_no_show) {
