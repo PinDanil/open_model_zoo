@@ -403,14 +403,14 @@ int main(int argc, char *argv[]) {
                 if (cv::waitKey(1) >= 0) stream.stop();
             }
 
-            timer.finish("total");
-
             if (!FLAGS_o.empty() && !videoWriter.isOpened()) {
                 videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
             }
             if (!FLAGS_o.empty()) {
                 videoWriter.write(prev_frame);
             }
+
+            timer.finish("total");
         }
 
         if (!FLAGS_o.empty()) {
