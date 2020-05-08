@@ -287,12 +287,13 @@ int main(int argc, char *argv[]) {
 
         cv::VideoWriter videoWriter;
 
-        Avg avg;
+        Timer timer;
 
         stream.start();
-        avg.start();
+
         while (stream.running())
         {
+            timer.start("total");
             if (!stream.pull(std::move(out_vector))) {
                 std::cout<<"End of streaming" << std::endl;
                 if(FLAGS_loop_video) {
@@ -305,28 +306,6 @@ int main(int argc, char *argv[]) {
             } else {
                 framesCounter++;
             }
-
-            // // End of file (or a single frame file like an image). The last frame is displayed to let you check what is shown
-            // if (!stream.pull(std::move(out_vector))) {
-            //     if (!FLAGS_no_wait) {
-            //         std::cout << "No more frames to process!" << std::endl;
-            //         cv::waitKey(0);
-            //     }
-            //     break;
-            // } else if (!FLAGS_no_show && -1 != cv::waitKey(1)) {
-            //     break;
-            // }
-
-            // // Reading the next frame if the current one is not the last
-            // if (!isLastFrame) {
-            //     frameReadStatus = cap.read(next_frame);
-            //     if (FLAGS_loop_video && !frameReadStatus) {
-            //         if (!(FLAGS_i == "cam" ? cap.open(0) : cap.open(FLAGS_i))) {
-            //             throw std::logic_error("Cannot open input file or camera: " + FLAGS_i);
-            //         }
-            //         frameReadStatus = cap.read(next_frame);
-            //     }
-            // }
 
             if (!FLAGS_no_show && emotions_enable && !FLAGS_no_show_emotion_bar) {
                 visualizer->enableEmotionBar(frame.size(), {"neutral",
@@ -367,13 +346,6 @@ int main(int argc, char *argv[]) {
                 } else {
                     face = std::make_shared<Face>(id++, rect);
                 }
-                if (FLAGS_r) {
-                    std::cout << "[" << i << "," << face->_id << "] element, prob = " << face->_confidence <<
-                         "    (" << face->_location.x << "," << face->_location.y << ")-(" << face->_location.width << ","
-                      << face->_location.height << ")"
-                      << ((face->_confidence > FLAGS_t) ? " WILL BE RENDERED!" : "") << std::endl;
-                } 
-
 
                 if (age_gender_enable) {
                     face->ageGenderEnable();
@@ -419,7 +391,7 @@ int main(int argc, char *argv[]) {
             if (!FLAGS_no_show) {
                 out.str("");
                 out << "Total image throughput: " << std::fixed << std::setprecision(2)
-                    << avg.fps(framesCounter) << " fps";
+                    << 1000.f / (timer["total"].getSmoothedDuration()) << " fps";
                 cv::putText(frame, out.str(), cv::Point2f(10, 45), cv::FONT_HERSHEY_TRIPLEX, 1.2,
                             cv::Scalar(255, 0, 0), 2);
 
@@ -430,6 +402,8 @@ int main(int argc, char *argv[]) {
 
                 if (cv::waitKey(1) >= 0) stream.stop();
             }
+
+            timer.finish("total");
 
             if (!FLAGS_o.empty() && !videoWriter.isOpened()) {
                 videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
@@ -444,7 +418,7 @@ int main(int argc, char *argv[]) {
         }
 
         slog::info << "Number of processed frames: " << framesCounter << slog::endl;
-        slog::info << "Total image throughput: " << avg.fps(framesCounter) << " fps" << slog::endl;
+        slog::info << "Total image throughput: " << framesCounter * (1000.f / timer["total"].getTotalDuration()) << " fps" << slog::endl;
 
         cv::destroyAllWindows();
     }
