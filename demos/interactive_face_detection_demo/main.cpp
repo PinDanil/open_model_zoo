@@ -154,8 +154,116 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     }
 };
 
+void resultRawOutput(const cv::Mat &ssd_result,
+                     bool  age_gender_enable,
+                     const std::vector<cv::Mat> &out_ages,
+                     const std::vector<cv::Mat> &out_genders,
+                     bool  headpose_enable,
+                     const std::vector<cv::Mat> &out_y_fc,
+                     const std::vector<cv::Mat> &out_p_fc,
+                     const std::vector<cv::Mat> &out_r_fc,
+                     bool  landmarks_enable,
+                     const std::vector<cv::Mat> &out_landmarks,
+                     bool  emotions_enable,
+                     const std::vector<cv::Mat> &out_emotions,
+                     const cv::Size upscale,
+                     const float detectionThreshold) {
+        const auto &in_ssd_dims = ssd_result.size;
+        CV_Assert(in_ssd_dims.dims() == 4u);
+
+        const int MAX_PROPOSALS = in_ssd_dims[2];
+        const int OBJECT_SIZE   = in_ssd_dims[3];
+        CV_Assert(OBJECT_SIZE == 7);
+
+        const float *data = ssd_result.ptr<float>();
+        for (int i = 0; i < MAX_PROPOSALS; i++) {
+            const float image_id   = data[i * OBJECT_SIZE + 0]; // batch id
+            const float lable      = data[i * OBJECT_SIZE + 1];
+            const float confidence = data[i * OBJECT_SIZE + 2];
+            const float rc_left    = data[i * OBJECT_SIZE + 3];
+            const float rc_top     = data[i * OBJECT_SIZE + 4];
+            const float rc_right   = data[i * OBJECT_SIZE + 5];
+            const float rc_bottom  = data[i * OBJECT_SIZE + 6];
+
+            if (image_id < 0) break;
+
+            int x      = static_cast<int>(rc_left   * upscale.width);
+            int y      = static_cast<int>(rc_top    * upscale.height);
+            int width  = static_cast<int>(rc_right  * upscale.width)  - x;
+            int height = static_cast<int>(rc_bottom * upscale.height) - y;
+
+            std::cout << "[" << i << "," << lable << "] element, prob = " << confidence <<
+                 "    (" << x << "," << y << ")-(" << width << "," << height << ")"
+                 << ((confidence > detectionThreshold) ? " WILL BE RENDERED!" : "") << std::endl;
+        }
+
+        if (age_gender_enable) {
+            // Put aassert
+            for (size_t idx = 0; idx < out_ages.size(); idx++) {
+                const float *age_data = out_ages[idx].ptr<float>();
+                const float *gender_data = out_genders[idx].ptr<float>();
+
+                float maleProb = gender_data[1];
+                float age      = age_data[0] * 100;
+
+                std::cout << "[" << idx << "] element, male prob = " << maleProb << ", age = " << age << std::endl;        
+            }
+        }
+
+        if (emotions_enable) {
+            static const std::vector<std::string> emotionsVec = {"neutral", "happy", "sad", "surprise", "anger"};
+            size_t emotionsVecSize = emotionsVec.size();
+
+            for (size_t idx = 0; idx < out_emotions.size(); idx++) {
+                const float *em_data = out_emotions[idx].ptr<float>();
+
+                std::cout << "[" << idx << "] element, predicted emotions (name = prob):" << std::endl;
+                for (size_t i = 0; i < emotionsVecSize; i++) {
+                    std::cout << emotionsVec[i] << " = " << em_data[i];
+                    if (emotionsVecSize - 1 != i) {
+                        std::cout << ", ";
+                    } else {
+                        std::cout << std::endl;
+                    }
+                }
+            }
+        }
+
+        if (headpose_enable) {
+            // Put aassert
+            for (size_t idx = 0; idx < out_y_fc.size(); idx++) {
+                const float *y_data = out_y_fc[idx].ptr<float>();
+                const float *p_data = out_p_fc[idx].ptr<float>();
+                const float *r_data = out_r_fc[idx].ptr<float>();
+
+                std::cout << "[" << idx << "] element, yaw = " << y_data[0] <<
+                             ", pitch = " << p_data[0] <<
+                             ", roll = " << r_data[0]  << std::endl;
+            }
+        }
+
+        if (landmarks_enable) {
+            // Put aassert
+            for (size_t idx = 0; idx < out_landmarks.size(); idx++) {
+                const float *lm_data = out_landmarks[idx].ptr<float>();
+
+                std::cout << "[" << idx << "] element, normed facial landmarks coordinates (x, y):" << std::endl;
+
+                // FIXME: extract n_lm from out_landmarks[idx]
+                int n_lm = 70;
+                for (int i_lm = 0; i_lm < n_lm / 2; ++i_lm) {
+                    float normed_x = lm_data[2 * i_lm];
+                    float normed_y = lm_data[2 * i_lm + 1];
+
+                    std::cout << normed_x << ", " << normed_y << std::endl;
+                }
+            }
+        }
+}
+
 void resultProcessing(cv::Mat frame,
-                      std::list<Face::Ptr> &faces, std::list<Face::Ptr> &prev_faces,
+                      std::list<Face::Ptr> &faces,
+                      std::list<Face::Ptr> &prev_faces,
                       std::vector<cv::Rect> &face_hub,
                       bool age_gender_enable,
                       std::vector<cv::Mat> &out_ages, std::vector<cv::Mat> &out_genders,
@@ -193,36 +301,50 @@ void resultProcessing(cv::Mat frame,
         }
 
         if (age_gender_enable) {
+            const float *age_data = out_ages[i].ptr<float>();
+            const float *gender_data = out_genders[i].ptr<float>();
+
+            float maleProb = gender_data[1];
+            float age      = age_data[0] * 100;
+
             face->ageGenderEnable();
-            face->updateGender(out_genders[i].at<float>(0));
-            face->updateAge(out_ages[i].at<float>(0) * 100);
+            face->updateGender(maleProb);
+            face->updateAge(age);
         }
 
         if (headpose_enable) {
+            const float *y_data = out_y_fc[i].ptr<float>();
+            const float *p_data = out_p_fc[i].ptr<float>();
+            const float *r_data = out_r_fc[i].ptr<float>();
+
             face->headPoseEnable();
-            face->updateHeadPose({out_r_fc[i].at<float>(0),
-                                  out_p_fc[i].at<float>(0),
-                                  out_y_fc[i].at<float>(0)});
+            face->updateHeadPose({y_data[0],
+                                  p_data[0],
+                                  r_data[0]});
         }
 
         if (emotions_enable) {
+            const float *em_data = out_emotions[i].ptr<float>();
+
             face->emotionsEnable();
             face->updateEmotions({
-                                  {"neutral", out_emotions[i].at<float>(0)},
-                                  {"happy", out_emotions[i].at<float>(1)} ,
-                                  {"sad", out_emotions[i].at<float>(2)} ,
-                                  {"surprise", out_emotions[i].at<float>(3)},
-                                  {"anger", out_emotions[i].at<float>(4)}
+                                  {"neutral", em_data[0]},
+                                  {"happy", em_data[1]} ,
+                                  {"sad", em_data[2]} ,
+                                  {"surprise", em_data[3]},
+                                  {"anger", em_data[4]}
                                   });
         }
 
         if (landmarks_enable) {
+            const float *lm_data = out_landmarks[i].ptr<float>();
+
             face->landmarksEnable();
             std::vector<float> normedLandmarks;
             size_t n_lm = 70;
             for (size_t i_lm = 0UL; i_lm < n_lm; ++i_lm) {
-                normedLandmarks.push_back(out_landmarks[i].at<float>(2 * i_lm));
-                normedLandmarks.push_back(out_landmarks[i].at<float>(2 * i_lm + 1));
+                normedLandmarks.push_back(lm_data[2 * i_lm]);
+                normedLandmarks.push_back(lm_data[2 * i_lm + 1]);
             }
 
             face->updateLandmarks(normedLandmarks);
@@ -267,6 +389,7 @@ int main(int argc, char *argv[]) {
                 cv::GProtoOutputArgs outs = GOut(frame);
 
                 cv::GMat detections = cv::gapi::infer<Faces>(in);
+                outs += GOut(detections);
 
                 cv::GArray<cv::Rect> faces = PostProc::on(detections, in,
                                                           FLAGS_t,
@@ -340,6 +463,7 @@ int main(int argc, char *argv[]) {
         cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
 
         cv::Mat frame;
+        cv::Mat ssd_res;
         std::vector<cv::Rect> face_hub;
         std::vector<cv::Mat> out_ages, out_genders;
         std::vector<cv::Mat> out_y_fc, out_p_fc, out_r_fc;
@@ -350,6 +474,7 @@ int main(int argc, char *argv[]) {
 
         cv::GRunArgsP out_vector;
         out_vector += cv::gout(frame);
+        out_vector += cv::gout(ssd_res);
         out_vector += cv::gout(face_hub);
         if (age_gender_enable) out_vector += cv::gout(out_ages, out_genders);
         if (headpose_enable)   out_vector += cv::gout(out_y_fc, out_p_fc, out_r_fc);
@@ -385,57 +510,69 @@ int main(int argc, char *argv[]) {
                 }
             } else {
                 framesCounter++;
+
+                if (!FLAGS_no_show && emotions_enable && !FLAGS_no_show_emotion_bar) {
+                    visualizer->enableEmotionBar(frame.size(), {"neutral",
+                                                                "happy",
+                                                                "sad",
+                                                                "surprise",
+                                                                "anger"});
+                }
+
+                //  Postprocessing
+                std::list<Face::Ptr> prev_faces;
+
+                if (!FLAGS_no_smooth) {
+                    prev_faces.insert(prev_faces.begin(), faces.begin(), faces.end());
+                }
+
+                faces.clear();
+
+                resultProcessing(frame,
+                                 faces, prev_faces, face_hub,
+                                 age_gender_enable, out_ages, out_genders,
+                                 headpose_enable, out_y_fc, out_p_fc, out_r_fc,
+                                 landmarks_enable, out_landmarks,
+                                 emotions_enable, out_emotions,
+                                 id, FLAGS_no_smooth);
+
+                if (FLAGS_r)
+                    resultRawOutput(ssd_res,
+                                    age_gender_enable, out_ages, out_genders,
+                                    headpose_enable,
+                                    out_y_fc, out_p_fc, out_r_fc,
+                                    landmarks_enable,
+                                    out_landmarks,
+                                    emotions_enable,
+                                    out_emotions,
+                                    frame.size(),
+                                    FLAGS_t);
+
+                //  Visualizing results
+                if (!FLAGS_no_show) {
+                    out.str("");
+                    out << "Total image throughput: " << std::fixed << std::setprecision(2)
+                        << 1000.f / (timer["total"].getSmoothedDuration()) << " fps";
+                    cv::putText(frame, out.str(), cv::Point2f(10, 45), cv::FONT_HERSHEY_TRIPLEX, 1.2,
+                                cv::Scalar(255, 0, 0), 2);
+
+                    // drawing faces
+                    visualizer->draw(frame, faces);
+
+                    cv::imshow("Detection results", frame);
+
+                    if (cv::waitKey(1) >= 0) stream.stop();
+                }
+
+                if (!FLAGS_o.empty() && !videoWriter.isOpened()) {
+                    videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
+                }
+                if (!FLAGS_o.empty()) {
+                    videoWriter.write(prev_frame);
+                }
+
+                timer.finish("total");
             }
-
-            if (!FLAGS_no_show && emotions_enable && !FLAGS_no_show_emotion_bar) {
-                visualizer->enableEmotionBar(frame.size(), {"neutral",
-                                                            "happy",
-                                                            "sad",
-                                                            "surprise",
-                                                            "anger"});
-            }
-
-            //  Postprocessing
-            std::list<Face::Ptr> prev_faces;
-
-            if (!FLAGS_no_smooth) {
-                prev_faces.insert(prev_faces.begin(), faces.begin(), faces.end());
-            }
-
-            faces.clear();
-
-            resultProcessing(frame,
-                             faces, prev_faces, face_hub,
-                             age_gender_enable, out_ages, out_genders,
-                             headpose_enable, out_y_fc, out_p_fc, out_r_fc,
-                             landmarks_enable, out_landmarks,
-                             emotions_enable, out_emotions,
-                             id, FLAGS_no_smooth);
-
-            //  Visualizing results
-            if (!FLAGS_no_show) {
-                out.str("");
-                out << "Total image throughput: " << std::fixed << std::setprecision(2)
-                    << 1000.f / (timer["total"].getSmoothedDuration()) << " fps";
-                cv::putText(frame, out.str(), cv::Point2f(10, 45), cv::FONT_HERSHEY_TRIPLEX, 1.2,
-                            cv::Scalar(255, 0, 0), 2);
-
-                // drawing faces
-                visualizer->draw(frame, faces);
-
-                cv::imshow("Detection results", frame);
-
-                if (cv::waitKey(1) >= 0) stream.stop();
-            }
-
-            if (!FLAGS_o.empty() && !videoWriter.isOpened()) {
-                videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
-            }
-            if (!FLAGS_o.empty()) {
-                videoWriter.write(prev_frame);
-            }
-
-            timer.finish("total");
         }
 
         if (!FLAGS_o.empty()) {

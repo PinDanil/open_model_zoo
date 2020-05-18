@@ -21,7 +21,7 @@ void Face::updateConfidence(float value) {
 }
 
 void Face::updateAge(float value) {
-    _age = value;
+    _age = (_age == -1) ? value : 0.95f * _age + 0.05f * value;
 }
 
 void Face::updateGender(float value) {
@@ -29,9 +29,9 @@ void Face::updateGender(float value) {
         return;
 
     if (value > 0.5) {
-        _femaleScore += value - 0.5f;
+        _maleScore += value - 0.5f;
     } else {
-        _maleScore += 0.5f - value;
+        _femaleScore += 0.5f - value;
     }
 }
 

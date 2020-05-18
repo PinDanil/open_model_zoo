@@ -44,9 +44,9 @@ struct AgeGenderResult {
 };
 
 struct HeadPoseResults {
-    float angle_r;
-    float angle_p;
     float angle_y;
+    float angle_p;
+    float angle_r;
 };
 
 class CallStat {
