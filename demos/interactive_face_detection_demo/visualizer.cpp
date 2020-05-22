@@ -2,13 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <memory>
-#include <string>
-#include <list>
-#include <vector>
-#include <map>
-#include <algorithm>
-
 #include "visualizer.hpp"
 
 // EmotionBarVisualizer

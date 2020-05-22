@@ -7,46 +7,24 @@
 * \file interactive_face_detection_demo/main.cpp
 * \example interactive_face_detection_demo/main.cpp
 */
-#include <gflags/gflags.h>
-#include <functional>
-#include <iostream>
-#include <fstream>
-#include <random>
-#include <memory>
-#include <chrono>
 #include <vector>
 #include <string>
-#include <utility>
-#include <algorithm>
-#include <iterator>
-#include <map>
 #include <list>
-#include <set>
-
-#include <inference_engine.hpp>
 
 #include <samples/ocv_common.hpp>
 #include <samples/slog.hpp>
 
 #include <opencv2/gapi.hpp>
 #include <opencv2/gapi/core.hpp>
-#include <opencv2/gapi/imgproc.hpp>
-#include <opencv2/gapi/fluid/core.hpp>
 #include <opencv2/gapi/infer.hpp>
 #include <opencv2/gapi/infer/ie.hpp>
 #include <opencv2/gapi/cpu/gcpukernel.hpp>
 #include <opencv2/gapi/streaming/cap.hpp>
 
-
 #include "interactive_face_detection.hpp"
 #include "utils.hpp"
 #include "face.hpp"
 #include "visualizer.hpp"
-
-#include <ie_iextension.h>
-#ifdef WITH_EXTENSIONS
-#include <ext_list.hpp>
-#endif
 
 using namespace InferenceEngine;
 
@@ -72,17 +50,13 @@ bool ParseAndCheckCommandLine(int argc, char *argv[]) {
     return true;
 }
 
-G_API_NET(Faces, <cv::GMat(cv::GMat)>, "face-detector");
-
 using AGInfo = std::tuple<cv::GMat, cv::GMat>;
-G_API_NET(AgeGender, <AGInfo(cv::GMat)>,   "age-gender-recoginition");
-
 using HPInfo = std::tuple<cv::GMat, cv::GMat, cv::GMat>;
-G_API_NET(HeadPose, <HPInfo(cv::GMat)>,   "head-pose-recoginition");
-
-G_API_NET(FacialLandmark, <cv::GMat(cv::GMat)>,   "facial-landmark-recoginition");
-
-G_API_NET(Emotions, <cv::GMat(cv::GMat)>, "emotions-recognition");
+G_API_NET(Faces,          <cv::GMat(cv::GMat)>, "face-detector");
+G_API_NET(AgeGender,      <AGInfo(cv::GMat)>,   "age-gender-recoginition");
+G_API_NET(HeadPose,       <HPInfo(cv::GMat)>,   "head-pose-recoginition");
+G_API_NET(FacialLandmark, <cv::GMat(cv::GMat)>, "facial-landmark-recoginition");
+G_API_NET(Emotions,       <cv::GMat(cv::GMat)>, "emotions-recognition");
 
 G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat, float, float, float, float)>, "custom.fd_postproc") {
     static cv::GArrayDesc outMeta(const cv::GMatDesc &, const cv::GMatDesc &, float, float, float, float) {
@@ -154,205 +128,171 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     }
 };
 
-void resultRawOutput(const cv::Mat &ssd_result,
-                     bool  age_gender_enable,
-                     const std::vector<cv::Mat> &out_ages,
-                     const std::vector<cv::Mat> &out_genders,
-                     bool  headpose_enable,
-                     const std::vector<cv::Mat> &out_y_fc,
-                     const std::vector<cv::Mat> &out_p_fc,
-                     const std::vector<cv::Mat> &out_r_fc,
-                     bool  landmarks_enable,
-                     const std::vector<cv::Mat> &out_landmarks,
-                     bool  emotions_enable,
-                     const std::vector<cv::Mat> &out_emotions,
-                     const cv::Size upscale,
-                     const float detectionThreshold) {
-        const auto &in_ssd_dims = ssd_result.size;
-        CV_Assert(in_ssd_dims.dims() == 4u);
+void rawOutputDetections(const int i,
+                         const cv::Mat &ssd_result,
+                         const cv::Size upscale,
+                         const float detectionThreshold) {
+    const auto &in_ssd_dims = ssd_result.size;
+    CV_Assert(in_ssd_dims.dims() == 4u);
 
-        const int MAX_PROPOSALS = in_ssd_dims[2];
-        const int OBJECT_SIZE   = in_ssd_dims[3];
-        CV_Assert(OBJECT_SIZE == 7);
+    const int OBJECT_SIZE   = in_ssd_dims[3];
+    CV_Assert(OBJECT_SIZE == 7);
 
-        const float *data = ssd_result.ptr<float>();
-        for (int i = 0; i < MAX_PROPOSALS; i++) {
-            const float image_id   = data[i * OBJECT_SIZE + 0]; // batch id
-            const float lable      = data[i * OBJECT_SIZE + 1];
-            const float confidence = data[i * OBJECT_SIZE + 2];
-            const float rc_left    = data[i * OBJECT_SIZE + 3];
-            const float rc_top     = data[i * OBJECT_SIZE + 4];
-            const float rc_right   = data[i * OBJECT_SIZE + 5];
-            const float rc_bottom  = data[i * OBJECT_SIZE + 6];
+    const float *data = ssd_result.ptr<float>();
 
-            if (image_id < 0) break;
+    const float image_id   = data[i * OBJECT_SIZE + 0]; // batch id
+    const float label      = data[i * OBJECT_SIZE + 1];
+    const float confidence = data[i * OBJECT_SIZE + 2];
+    const float rc_left    = data[i * OBJECT_SIZE + 3];
+    const float rc_top     = data[i * OBJECT_SIZE + 4];
+    const float rc_right   = data[i * OBJECT_SIZE + 5];
+    const float rc_bottom  = data[i * OBJECT_SIZE + 6];
 
-            int x      = static_cast<int>(rc_left   * upscale.width);
-            int y      = static_cast<int>(rc_top    * upscale.height);
-            int width  = static_cast<int>(rc_right  * upscale.width)  - x;
-            int height = static_cast<int>(rc_bottom * upscale.height) - y;
+    if (image_id >= 0) {
+        int x      = static_cast<int>(rc_left   * upscale.width);
+        int y      = static_cast<int>(rc_top    * upscale.height);
+        int width  = static_cast<int>(rc_right  * upscale.width)  - x;
+        int height = static_cast<int>(rc_bottom * upscale.height) - y;
 
-            std::cout << "[" << i << "," << lable << "] element, prob = " << confidence <<
-                 "    (" << x << "," << y << ")-(" << width << "," << height << ")"
-                 << ((confidence > detectionThreshold) ? " WILL BE RENDERED!" : "") << std::endl;
-        }
-
-        if (age_gender_enable) {
-            // Put aassert
-            for (size_t idx = 0; idx < out_ages.size(); idx++) {
-                const float *age_data = out_ages[idx].ptr<float>();
-                const float *gender_data = out_genders[idx].ptr<float>();
-
-                float maleProb = gender_data[1];
-                float age      = age_data[0] * 100;
-
-                std::cout << "[" << idx << "] element, male prob = " << maleProb << ", age = " << age << std::endl;        
-            }
-        }
-
-        if (emotions_enable) {
-            static const std::vector<std::string> emotionsVec = {"neutral", "happy", "sad", "surprise", "anger"};
-            size_t emotionsVecSize = emotionsVec.size();
-
-            for (size_t idx = 0; idx < out_emotions.size(); idx++) {
-                const float *em_data = out_emotions[idx].ptr<float>();
-
-                std::cout << "[" << idx << "] element, predicted emotions (name = prob):" << std::endl;
-                for (size_t i = 0; i < emotionsVecSize; i++) {
-                    std::cout << emotionsVec[i] << " = " << em_data[i];
-                    if (emotionsVecSize - 1 != i) {
-                        std::cout << ", ";
-                    } else {
-                        std::cout << std::endl;
-                    }
-                }
-            }
-        }
-
-        if (headpose_enable) {
-            // Put aassert
-            for (size_t idx = 0; idx < out_y_fc.size(); idx++) {
-                const float *y_data = out_y_fc[idx].ptr<float>();
-                const float *p_data = out_p_fc[idx].ptr<float>();
-                const float *r_data = out_r_fc[idx].ptr<float>();
-
-                std::cout << "[" << idx << "] element, yaw = " << y_data[0] <<
-                             ", pitch = " << p_data[0] <<
-                             ", roll = " << r_data[0]  << std::endl;
-            }
-        }
-
-        if (landmarks_enable) {
-            // Put aassert
-            for (size_t idx = 0; idx < out_landmarks.size(); idx++) {
-                const float *lm_data = out_landmarks[idx].ptr<float>();
-
-                std::cout << "[" << idx << "] element, normed facial landmarks coordinates (x, y):" << std::endl;
-
-                // FIXME: extract n_lm from out_landmarks[idx]
-                int n_lm = 70;
-                for (int i_lm = 0; i_lm < n_lm / 2; ++i_lm) {
-                    float normed_x = lm_data[2 * i_lm];
-                    float normed_y = lm_data[2 * i_lm + 1];
-
-                    std::cout << normed_x << ", " << normed_y << std::endl;
-                }
-            }
-        }
+        std::cout << "[" << i << "," << label << "] element, prob = " << confidence <<
+             "    (" << x << "," << y << ")-(" << width << "," << height << ")"
+             << ((confidence > detectionThreshold) ? " WILL BE RENDERED!" : "") << std::endl;
+    }
 }
 
-void resultProcessing(cv::Mat frame,
-                      std::list<Face::Ptr> &faces,
-                      std::list<Face::Ptr> &prev_faces,
-                      std::vector<cv::Rect> &face_hub,
-                      bool age_gender_enable,
-                      std::vector<cv::Mat> &out_ages, std::vector<cv::Mat> &out_genders,
-                      bool headpose_enable,
-                      std::vector<cv::Mat> &out_y_fc,
-                      std::vector<cv::Mat> &out_p_fc,
-                      std::vector<cv::Mat> &out_r_fc,
-                      bool landmarks_enable,
-                      std::vector<cv::Mat> &out_landmarks,
-                      bool emotions_enable,
-                      std::vector<cv::Mat> &out_emotions,
-                      size_t &id,
-                      bool no_smooth) {
-    // For every detected face
-    for (size_t i = 0; i < face_hub.size(); i++) {
-        cv::Rect rect = face_hub[i] & cv::Rect({0, 0}, frame.size());
+void rawOutputAgeGender(const int idx, const cv::Mat out_ages, const cv::Mat out_genders) {
+    const float *age_data = out_ages.ptr<float>();
+    const float *gender_data = out_genders.ptr<float>();
 
-        Face::Ptr face;
-        if (!no_smooth) {
-            face = matchFace(rect, prev_faces);
-            float intensity_mean = calcMean(frame(rect));
-            intensity_mean += 1.0;
+    float maleProb = gender_data[1];
+    float age      = age_data[0] * 100;
 
-            if ((face == nullptr) ||
-                ((face != nullptr) && ((std::abs(intensity_mean - face->_intensity_mean) / face->_intensity_mean) > 0.07f))) {
-                face = std::make_shared<Face>(id++, rect);
-            } else {
-                prev_faces.remove(face);
-            }
+    std::cout << "[" << idx << "] element, male prob = " << maleProb << ", age = " << age << std::endl;        
+}
 
-            face->_intensity_mean = intensity_mean;
-            face->_location = rect;
-        } else {
-            face = std::make_shared<Face>(id++, rect);
-        }
+void rawOutputHeadpose(const int idx,
+                       const cv::Mat out_y_fc,
+                       const cv::Mat out_p_fc,
+                       const cv::Mat out_r_fc) {
+    const float *y_data = out_y_fc.ptr<float>();
+    const float *p_data = out_p_fc.ptr<float>();
+    const float *r_data = out_r_fc.ptr<float>();
 
-        if (age_gender_enable) {
-            const float *age_data = out_ages[i].ptr<float>();
-            const float *gender_data = out_genders[i].ptr<float>();
+    std::cout << "[" << idx << "] element, yaw = " << y_data[0] <<
+                 ", pitch = " << p_data[0] <<
+                 ", roll = " << r_data[0]  << std::endl;
+}
 
-            float maleProb = gender_data[1];
-            float age      = age_data[0] * 100;
+void rawOutputLandmarks(const int idx, const cv::Mat out_landmark) {
+    const float *lm_data = out_landmark.ptr<float>();
 
-            face->ageGenderEnable();
-            face->updateGender(maleProb);
-            face->updateAge(age);
-        }
+    std::cout << "[" << idx << "] element, normed facial landmarks coordinates (x, y):" << std::endl;
 
-        if (headpose_enable) {
-            const float *y_data = out_y_fc[i].ptr<float>();
-            const float *p_data = out_p_fc[i].ptr<float>();
-            const float *r_data = out_r_fc[i].ptr<float>();
+    // FIXME: extract n_lm from out_landmarks[idx]
+    int n_lm = 70;
+    for (int i_lm = 0; i_lm < n_lm / 2; ++i_lm) {
+        float normed_x = lm_data[2 * i_lm];
+        float normed_y = lm_data[2 * i_lm + 1];
 
-            face->headPoseEnable();
-            face->updateHeadPose({y_data[0],
-                                  p_data[0],
-                                  r_data[0]});
-        }
-
-        if (emotions_enable) {
-            const float *em_data = out_emotions[i].ptr<float>();
-
-            face->emotionsEnable();
-            face->updateEmotions({
-                                  {"neutral", em_data[0]},
-                                  {"happy", em_data[1]} ,
-                                  {"sad", em_data[2]} ,
-                                  {"surprise", em_data[3]},
-                                  {"anger", em_data[4]}
-                                  });
-        }
-
-        if (landmarks_enable) {
-            const float *lm_data = out_landmarks[i].ptr<float>();
-
-            face->landmarksEnable();
-            std::vector<float> normedLandmarks;
-            size_t n_lm = 70;
-            for (size_t i_lm = 0UL; i_lm < n_lm; ++i_lm) {
-                normedLandmarks.push_back(lm_data[2 * i_lm]);
-                normedLandmarks.push_back(lm_data[2 * i_lm + 1]);
-            }
-
-            face->updateLandmarks(normedLandmarks);
-        }
-        // End of face postprocesing
-
-        faces.push_back(face);
+        std::cout << normed_x << ", " << normed_y << std::endl;
     }
+}
+
+void rawOutputEmotions(const int idx, const cv::Mat out_emotion) {
+    static const std::vector<std::string> emotionsVec = {"neutral", "happy", "sad", "surprise", "anger"};
+    size_t emotionsVecSize = emotionsVec.size();
+
+    const float *em_data = out_emotion.ptr<float>();
+
+    std::cout << "[" << idx << "] element, predicted emotions (name = prob):" << std::endl;
+    for (size_t i = 0; i < emotionsVecSize; i++) {
+        std::cout << emotionsVec[i] << " = " << em_data[i];
+        if (emotionsVecSize - 1 != i) {
+            std::cout << ", ";
+        } else {
+            std::cout << std::endl;
+        }
+    }
+}
+
+void faceProcessing(cv::Mat frame,
+                    Face::Ptr &face,
+                    cv::Rect face_rect,
+                    std::list<Face::Ptr> &prev_faces,
+                    std::vector<cv::Rect> &face_hub,
+                    size_t &id,
+                    bool no_smooth) {
+    // Face apdate
+    cv::Rect rect = face_rect & cv::Rect({0, 0}, frame.size());
+
+    if (!no_smooth) {
+        face = matchFace(rect, prev_faces);
+        float intensity_mean = calcMean(frame(rect));
+        intensity_mean += 1.0;
+
+        if ((face == nullptr) ||
+            ((face != nullptr) && ((std::abs(intensity_mean - face->_intensity_mean) / face->_intensity_mean) > 0.07f))) {
+            face = std::make_shared<Face>(id++, rect);
+        } else {
+            prev_faces.remove(face);
+        }
+
+        face->_intensity_mean = intensity_mean;
+        face->_location = rect;
+    } else {
+        face = std::make_shared<Face>(id++, rect);
+    }
+}
+
+void ageGenderProcessing(Face::Ptr &face,
+                         cv::Mat out_age,
+                         cv::Mat out_gender) {
+    const float *age_data =    out_age.ptr<float>();
+    const float *gender_data = out_gender.ptr<float>();
+
+    float maleProb = gender_data[1];
+    float age      = age_data[0] * 100;
+
+    face->updateGender(maleProb);
+    face->updateAge(age);
+}
+
+void headPoseProcessing(Face::Ptr &face,
+                        cv::Mat out_y_fc,
+                        cv::Mat out_p_fc,
+                        cv::Mat out_r_fc) {
+    const float *y_data = out_y_fc.ptr<float>();
+    const float *p_data = out_p_fc.ptr<float>();
+    const float *r_data = out_r_fc.ptr<float>();
+
+    face->updateHeadPose({y_data[0],
+                          p_data[0],
+                          r_data[0]});
+}
+
+void emotionsProcessing(Face::Ptr &face, cv::Mat out_emotion) {
+    const float *em_data = out_emotion.ptr<float>();
+
+    face->updateEmotions({
+                          {"neutral", em_data[0]},
+                          {"happy", em_data[1]} ,
+                          {"sad", em_data[2]} ,
+                          {"surprise", em_data[3]},
+                          {"anger", em_data[4]}
+                          });
+}
+
+void landmarksProcessing(Face::Ptr &face, cv::Mat out_landmark) {
+    const float *lm_data = out_landmark.ptr<float>();
+
+    std::vector<float> normedLandmarks;
+    size_t n_lm = 70;
+    for (size_t i_lm = 0UL; i_lm < n_lm; ++i_lm) {
+        normedLandmarks.push_back(lm_data[2 * i_lm]);
+        normedLandmarks.push_back(lm_data[2 * i_lm + 1]);
+    }
+
+    face->updateLandmarks(normedLandmarks);
 }
 
 int main(int argc, char *argv[]) {
@@ -363,6 +303,31 @@ int main(int argc, char *argv[]) {
         if (!ParseAndCheckCommandLine(argc, argv)) {
             return 0;
         }
+
+        if (FLAGS_n_ag != 0)
+            std::cout << "[ WARNING ] Option \"-num_batch_ag\" is not supported in this version of the demo.\n";
+        if (FLAGS_n_hp != 0)
+            std::cout << "[ WARNING ] Option \"-num_batch_hp\" is not supported in this version of the demo.\n";
+        if (FLAGS_n_em != 0)
+            std::cout << "[ WARNING ] Option \"-num_batch_em\" is not supported in this version of the demo.\n";
+        if (FLAGS_n_lm != 0)
+            std::cout << "[ WARNING ] Option \"-num_batch_lm\" is not supported in this version of the demo.\n";
+        if (FLAGS_dyn_ag != false)
+            std::cout << "[ WARNING ] Option \"-dyn_batch_ag\" is not supported in this version of the demo.\n";
+        if (FLAGS_dyn_hp != false)
+            std::cout << "[ WARNING ] Option \"-dyn_batch_hp\" is not supported in this version of the demo.\n";
+        if (FLAGS_dyn_em != false)
+            std::cout << "[ WARNING ] Option \"-dyn_batch_em\" is not supported in this version of the demo.\n";
+        if (FLAGS_dyn_lm != false)
+            std::cout << "[ WARNING ] Option \"-dyn_batch_lm\" is not supported in this version of the demo.\n";
+        if (FLAGS_pc != false)
+            std::cout << "[ WARNING ] Option \"-pc\" is not supported in this version of the demo.\n";
+        if (!FLAGS_c.empty())
+            std::cout << "[ WARNING ] Option \"-c\" is not supported in this version of the demo.\n";
+        if (!FLAGS_l.empty())
+            std::cout << "[ WARNING ] Option \"-l\" is not supported in this version of the demo.\n";
+
+
         slog::info << "Start inference " << slog::endl;
 
         std::ostringstream out;
@@ -509,8 +474,6 @@ int main(int argc, char *argv[]) {
                     cv::waitKey(0);
                 }
             } else {
-                framesCounter++;
-
                 if (!FLAGS_no_show && emotions_enable && !FLAGS_no_show_emotion_bar) {
                     visualizer->enableEmotionBar(frame.size(), {"neutral",
                                                                 "happy",
@@ -528,25 +491,44 @@ int main(int argc, char *argv[]) {
 
                 faces.clear();
 
-                resultProcessing(frame,
-                                 faces, prev_faces, face_hub,
-                                 age_gender_enable, out_ages, out_genders,
-                                 headpose_enable, out_y_fc, out_p_fc, out_r_fc,
-                                 landmarks_enable, out_landmarks,
-                                 emotions_enable, out_emotions,
-                                 id, FLAGS_no_smooth);
+                // For every detected face
+                for (size_t i = 0; i < face_hub.size(); i++) {
+                    Face::Ptr face;
 
-                if (FLAGS_r)
-                    resultRawOutput(ssd_res,
-                                    age_gender_enable, out_ages, out_genders,
-                                    headpose_enable,
-                                    out_y_fc, out_p_fc, out_r_fc,
-                                    landmarks_enable,
-                                    out_landmarks,
-                                    emotions_enable,
-                                    out_emotions,
-                                    frame.size(),
-                                    FLAGS_t);
+                    cv::Rect rect = face_hub[i] & cv::Rect({0, 0}, frame.size());
+                    faceProcessing(frame, face, rect,
+                                   prev_faces, face_hub,
+                                   id, FLAGS_no_smooth);
+                    if(FLAGS_r)
+                        rawOutputDetections(i, ssd_res, frame.size(), FLAGS_t);
+
+                    if (age_gender_enable) {
+                        ageGenderProcessing(face, out_ages[i], out_genders[i]);
+                        if(FLAGS_r)
+                            rawOutputAgeGender(i, out_ages[i], out_genders[i]);
+                    }
+
+                    if (headpose_enable) {
+                        headPoseProcessing(face, out_y_fc[i], out_p_fc[i], out_r_fc[i]);
+                        if(FLAGS_r)
+                            rawOutputHeadpose(i, out_y_fc[i], out_p_fc[i], out_r_fc[i]);
+                    }
+
+                    if (emotions_enable) {
+                        emotionsProcessing(face, out_emotions[i]);
+                        if(FLAGS_r)
+                            rawOutputEmotions(i, out_emotions[i]);
+                    }
+
+                    if (landmarks_enable) {
+                        landmarksProcessing(face, out_landmarks[i]);
+                        if(FLAGS_r)
+                            rawOutputLandmarks(i, out_landmarks[i]);
+                    }
+                    // End of face postprocesing
+
+                    faces.push_back(face);
+                }
 
                 //  Visualizing results
                 if (!FLAGS_no_show) {
@@ -571,6 +553,7 @@ int main(int argc, char *argv[]) {
                     videoWriter.write(prev_frame);
                 }
 
+                framesCounter++;
                 timer.finish("total");
             }
         }

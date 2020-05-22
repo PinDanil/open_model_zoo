@@ -4,13 +4,6 @@
 
 #pragma once
 
-#include <memory>
-#include <string>
-#include <list>
-#include <vector>
-#include <map>
-#include <opencv2/opencv.hpp>
-
 #include "face.hpp"
 
 // -------------------------Generic routines for visualization of detection results-------------------------------------------------

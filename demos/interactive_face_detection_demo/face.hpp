@@ -3,12 +3,7 @@
 //
 
 # pragma once
-#include <string>
-#include <map>
-#include <memory>
-#include <utility>
-#include <list>
-#include <vector>
+
 #include <opencv2/opencv.hpp>
 
 #include "utils.hpp"
@@ -21,7 +16,6 @@ public:
 
     explicit Face(size_t id, cv::Rect& location);
 
-    void updateConfidence(float value);
     void updateAge(float value);
     void updateGender(float value);
     void updateEmotions(std::map<std::string, float> values);
@@ -36,11 +30,6 @@ public:
     const std::vector<float>& getLandmarks();
     size_t getId();
 
-    void ageGenderEnable();
-    void emotionsEnable();
-    void headPoseEnable();
-    void landmarksEnable();
-
     bool isAgeGenderEnabled();
     bool isEmotionsEnabled();
     bool isHeadPoseEnabled();
@@ -51,7 +40,6 @@ public:
     float _intensity_mean;
 
     size_t _id;
-    float _confidence;
     float _age;
     float _maleScore;
     float _femaleScore;

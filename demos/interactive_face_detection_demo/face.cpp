@@ -2,12 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <string>
-#include <map>
-#include <utility>
-#include <list>
-#include <vector>
-
 #include "face.hpp"
 
 Face::Face(size_t id, cv::Rect& location):
@@ -16,11 +10,8 @@ Face::Face(size_t id, cv::Rect& location):
     _isAgeGenderEnabled(false), _isEmotionsEnabled(false), _isHeadPoseEnabled(false), _isLandmarksEnabled(false) {
 }
 
-void Face::updateConfidence(float value) {
-    _confidence = value;
-}
-
 void Face::updateAge(float value) {
+    _isAgeGenderEnabled = true;
     _age = (_age == -1) ? value : 0.95f * _age + 0.05f * value;
 }
 
@@ -28,6 +19,7 @@ void Face::updateGender(float value) {
     if (value < 0)
         return;
 
+    _isAgeGenderEnabled = true;
     if (value > 0.5) {
         _maleScore += value - 0.5f;
     } else {
@@ -36,6 +28,7 @@ void Face::updateGender(float value) {
 }
 
 void Face::updateEmotions(std::map<std::string, float> values) {
+    _isEmotionsEnabled = true;
     for (auto& kv : values) {
         if (_emotions.find(kv.first) == _emotions.end()) {
             _emotions[kv.first] = kv.second;
@@ -46,10 +39,12 @@ void Face::updateEmotions(std::map<std::string, float> values) {
 }
 
 void Face::updateHeadPose(HeadPoseResults values) {
+    _isHeadPoseEnabled = true;
     _headPose = values;
 }
 
 void Face::updateLandmarks(std::vector<float> values) {
+    _isLandmarksEnabled = true;
     _landmarks = std::move(values);
 }
 
@@ -83,19 +78,6 @@ const std::vector<float>& Face::getLandmarks() {
 
 size_t Face::getId() {
     return _id;
-}
-
-void Face::ageGenderEnable() {
-    _isAgeGenderEnabled = true;
-}
-void Face::emotionsEnable() {
-    _isEmotionsEnabled = true;
-}
-void Face::headPoseEnable() {
-    _isHeadPoseEnabled = true;
-}
-void Face::landmarksEnable() {
-    _isLandmarksEnabled = true;
 }
 
 bool Face::isAgeGenderEnabled() {
