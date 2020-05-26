@@ -30,11 +30,6 @@ public:
     const std::vector<float>& getLandmarks();
     size_t getId();
 
-    bool isAgeGenderEnabled();
-    bool isEmotionsEnabled();
-    bool isHeadPoseEnabled();
-    bool isLandmarksEnabled();
-
 public:
     cv::Rect _location;
     float _intensity_mean;
@@ -46,12 +41,6 @@ public:
     std::map<std::string, float> _emotions;
     HeadPoseResults _headPose;
     std::vector<float> _landmarks;
-
-private:
-    bool _isAgeGenderEnabled;
-    bool _isEmotionsEnabled;
-    bool _isHeadPoseEnabled;
-    bool _isLandmarksEnabled;
 };
 
 // ----------------------------------- Utils -----------------------------------------------------------------

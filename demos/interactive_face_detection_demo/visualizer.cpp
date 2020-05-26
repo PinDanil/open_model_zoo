@@ -156,7 +156,17 @@ Visualizer::Visualizer(int leftPadding, int rightPadding, int topPadding, int bo
         emotionVisualizer(nullptr), photoFrameVisualizer(std::make_shared<PhotoFrameVisualizer>()),
         headPoseVisualizer(std::make_shared<HeadPoseVisualizer>()),
         nxcells(0), nycells(0), xstep(0), ystep(0), leftPadding(leftPadding),
-        rightPadding(rightPadding), topPadding(topPadding), bottomPadding(bottomPadding), frameCounter(0) {}
+        rightPadding(rightPadding), topPadding(topPadding), bottomPadding(bottomPadding), frameCounter(0),
+        _isAgeGenderEnabled(false), _isEmotionsEnabled(false),
+        _isHeadPoseEnabled(false), _isLandmarksEnabled(false) {}
+
+void Visualizer::enableVisualisations(bool isAgeGenderEnabled, bool isEmotionsEnabled,
+                                      bool isHeadPoseEnabled, bool isLandmarksEnabled) {
+    _isAgeGenderEnabled = isAgeGenderEnabled;
+    _isEmotionsEnabled = isEmotionsEnabled;
+    _isHeadPoseEnabled = isHeadPoseEnabled;
+    _isLandmarksEnabled = isLandmarksEnabled;
+}
 
 void Visualizer::enableEmotionBar(const cv::Size inImgSize, std::vector<std::string> const& emotionNames) {
     if (inImgSize != imgSize) {
@@ -185,18 +195,18 @@ void Visualizer::enableEmotionBar(const cv::Size inImgSize, std::vector<std::str
 }
 
 void Visualizer::drawFace(cv::Mat& img, Face::Ptr f, bool drawEmotionBar) {
-    auto genderColor = (f->isAgeGenderEnabled()) ?
+    auto genderColor = (_isAgeGenderEnabled) ?
                        ((f->isMale()) ? cv::Scalar(255, 0, 0) :
                                         cv::Scalar(147, 20, 255)) :
                                         cv::Scalar(100, 100, 100);
 
     std::ostringstream out;
-    if (f->isAgeGenderEnabled()) {
+    if (_isAgeGenderEnabled) {
         out << (f->isMale() ? "Male" : "Female");
         out << "," << f->getAge();
     }
 
-    if (f->isEmotionsEnabled()) {
+    if (_isEmotionsEnabled) {
         auto emotion = f->getMainEmotion();
         out << "," << emotion.first;
     }
@@ -208,14 +218,14 @@ void Visualizer::drawFace(cv::Mat& img, Face::Ptr f, bool drawEmotionBar) {
                 1.5,
                 genderColor, 2);
 
-    if (f->isHeadPoseEnabled()) {
+    if (_isHeadPoseEnabled) {
         cv::Point3f center(static_cast<float>(f->_location.x + f->_location.width / 2),
                            static_cast<float>(f->_location.y + f->_location.height / 2),
                            0.0f);
         headPoseVisualizer->draw(img, center, f->getHeadPose());
     }
 
-    if (f->isLandmarksEnabled()) {
+    if (_isLandmarksEnabled) {
         auto& normed_landmarks = f->getLandmarks();
         size_t n_lm = normed_landmarks.size();
         for (size_t i_lm = 0UL; i_lm < n_lm / 2; ++i_lm) {

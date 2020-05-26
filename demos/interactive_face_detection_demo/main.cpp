@@ -215,7 +215,7 @@ void rawOutputEmotions(const int idx, const cv::Mat out_emotion) {
     }
 }
 
-void faceProcessing(cv::Mat frame,
+void faceDataUpdate(cv::Mat frame,
                     Face::Ptr &face,
                     cv::Rect face_rect,
                     std::list<Face::Ptr> &prev_faces,
@@ -244,7 +244,7 @@ void faceProcessing(cv::Mat frame,
     }
 }
 
-void ageGenderProcessing(Face::Ptr &face,
+void ageGenderDataUpdate(Face::Ptr &face,
                          cv::Mat out_age,
                          cv::Mat out_gender) {
     const float *age_data =    out_age.ptr<float>();
@@ -257,7 +257,7 @@ void ageGenderProcessing(Face::Ptr &face,
     face->updateAge(age);
 }
 
-void headPoseProcessing(Face::Ptr &face,
+void headPoseDataUpdate(Face::Ptr &face,
                         cv::Mat out_y_fc,
                         cv::Mat out_p_fc,
                         cv::Mat out_r_fc) {
@@ -270,7 +270,7 @@ void headPoseProcessing(Face::Ptr &face,
                           r_data[0]});
 }
 
-void emotionsProcessing(Face::Ptr &face, cv::Mat out_emotion) {
+void emotionsDataUpdate(Face::Ptr &face, cv::Mat out_emotion) {
     const float *em_data = out_emotion.ptr<float>();
 
     face->updateEmotions({
@@ -282,7 +282,7 @@ void emotionsProcessing(Face::Ptr &face, cv::Mat out_emotion) {
                           });
 }
 
-void landmarksProcessing(Face::Ptr &face, cv::Mat out_landmark) {
+void landmarksDataUpdate(Face::Ptr &face, cv::Mat out_landmark) {
     const float *lm_data = out_landmark.ptr<float>();
 
     std::vector<float> normedLandmarks;
@@ -305,28 +305,30 @@ int main(int argc, char *argv[]) {
         }
 
         if (FLAGS_n_ag != 0)
-            std::cout << "[ WARNING ] Option \"-num_batch_ag\" is not supported in this version of the demo.\n";
+            std::cout << "[ WARNING ] Option \"-n_ag\" is not supported in this version of the demo." << std::endl;
         if (FLAGS_n_hp != 0)
-            std::cout << "[ WARNING ] Option \"-num_batch_hp\" is not supported in this version of the demo.\n";
+            std::cout << "[ WARNING ] Option \"-n_hp\" is not supported in this version of the demo." << std::endl;
         if (FLAGS_n_em != 0)
-            std::cout << "[ WARNING ] Option \"-num_batch_em\" is not supported in this version of the demo.\n";
+            std::cout << "[ WARNING ] Option \"-n_em\" is not supported in this version of the demo." << std::endl;
         if (FLAGS_n_lm != 0)
-            std::cout << "[ WARNING ] Option \"-num_batch_lm\" is not supported in this version of the demo.\n";
+            std::cout << "[ WARNING ] Option \"-n_lm\" is not supported in this version of the demo." << std::endl;
         if (FLAGS_dyn_ag != false)
-            std::cout << "[ WARNING ] Option \"-dyn_batch_ag\" is not supported in this version of the demo.\n";
+            std::cout << "[ WARNING ] Option \"-dyn_ag\" is not supported in this version of the demo." << std::endl;
         if (FLAGS_dyn_hp != false)
-            std::cout << "[ WARNING ] Option \"-dyn_batch_hp\" is not supported in this version of the demo.\n";
+            std::cout << "[ WARNING ] Option \"-dyn_hp\" is not supported in this version of the demo." << std::endl;
         if (FLAGS_dyn_em != false)
-            std::cout << "[ WARNING ] Option \"-dyn_batch_em\" is not supported in this version of the demo.\n";
+            std::cout << "[ WARNING ] Option \"-dyn_em\" is not supported in this version of the demo." << std::endl;
         if (FLAGS_dyn_lm != false)
-            std::cout << "[ WARNING ] Option \"-dyn_batch_lm\" is not supported in this version of the demo.\n";
+            std::cout << "[ WARNING ] Option \"-dyn_lm\" is not supported in this version of the demo." << std::endl;
         if (FLAGS_pc != false)
-            std::cout << "[ WARNING ] Option \"-pc\" is not supported in this version of the demo.\n";
+            std::cout << "[ WARNING ] Option \"-pc\" is not supported in this version of the demo."
+                << std::endl;
         if (!FLAGS_c.empty())
-            std::cout << "[ WARNING ] Option \"-c\" is not supported in this version of the demo.\n";
+            std::cout << "[ WARNING ] Option \"-c\" is not supported in this version of the demo."
+                << std::endl;
         if (!FLAGS_l.empty())
-            std::cout << "[ WARNING ] Option \"-l\" is not supported in this version of the demo.\n";
-
+            std::cout << "[ WARNING ] Option \"-l\" is not supported in this version of the demo."
+                << std::endl;
 
         slog::info << "Start inference " << slog::endl;
 
@@ -341,11 +343,6 @@ int main(int argc, char *argv[]) {
             std::cout << " or switch to the output window and press any key";
         }
         std::cout << std::endl;
-
-        bool age_gender_enable = !FLAGS_m_ag.empty();
-        bool headpose_enable   = !FLAGS_m_hp.empty();
-        bool emotions_enable   = !FLAGS_m_em.empty();
-        bool landmarks_enable  = !FLAGS_m_lm.empty();
 
         cv::GComputation pipeline([=]() {
                 cv::GMat in;
@@ -365,7 +362,7 @@ int main(int argc, char *argv[]) {
 
                 cv::GArray<cv::GMat> ages;
                 cv::GArray<cv::GMat> genders;
-                if (age_gender_enable) {
+                if (!FLAGS_m_ag.empty()) {
                     std::tie(ages, genders) = cv::gapi::infer<AgeGender>(faces, in);
                     outs += GOut(ages, genders);
                 }
@@ -373,19 +370,19 @@ int main(int argc, char *argv[]) {
                 cv::GArray<cv::GMat> y_fc;
                 cv::GArray<cv::GMat> p_fc;
                 cv::GArray<cv::GMat> r_fc;
-                if (headpose_enable) {
+                if (!FLAGS_m_hp.empty()) {
                     std::tie(y_fc, p_fc, r_fc) = cv::gapi::infer<HeadPose>(faces, in);
                     outs += GOut(y_fc, p_fc, r_fc);
                 }
 
                 cv::GArray<cv::GMat> emotions;
-                if (emotions_enable) {
+                if (!FLAGS_m_em.empty()) {
                     emotions = cv::gapi::infer<Emotions>(faces, in);
                     outs += GOut(emotions);
                 }
 
                 cv::GArray<cv::GMat> landmarks;
-                if (landmarks_enable) {
+                if (!FLAGS_m_lm.empty()) {
                     landmarks = cv::gapi::infer<FacialLandmark>(faces, in);
                     outs += GOut(landmarks);
                 }
@@ -393,32 +390,36 @@ int main(int argc, char *argv[]) {
                 return cv::GComputation(cv::GIn(in), std::move(outs));
         });
 
-        std::string face_det_m = FLAGS_m;
-        std::string face_det_w = fileNameNoExt(FLAGS_m) + ".bin";
-        std::string face_det_d = FLAGS_d;
-        auto det_net = cv::gapi::ie::Params<Faces> { face_det_m, face_det_w, face_det_d };
+        auto det_net = cv::gapi::ie::Params<Faces> { 
+            FLAGS_m,                         // path to model
+            fileNameNoExt(FLAGS_m) + ".bin", // path to weights
+            FLAGS_d                          // device to use
+        };
 
-        std::string age_gen_det_m = FLAGS_m_ag;
-        std::string age_gen_det_w = fileNameNoExt(FLAGS_m_ag) + ".bin";
-        std::string age_gen_det_d = FLAGS_d_ag;
-        auto age_net = cv::gapi::ie::Params<AgeGender> { age_gen_det_m, age_gen_det_w, age_gen_det_d }
-                                                            .cfgOutputLayers({ "age_conv3", "prob" });
+        auto age_net = cv::gapi::ie::Params<AgeGender> {
+            FLAGS_m_ag,                         // path to model
+            fileNameNoExt(FLAGS_m_ag) + ".bin", // path to weights
+            FLAGS_d_ag                          // device to use
+        }.cfgOutputLayers({ "age_conv3", "prob" });
 
-        std::string head_pose_det_m = FLAGS_m_hp;
-        std::string head_pose_det_w = fileNameNoExt(FLAGS_m_hp) + ".bin";
-        std::string head_pose_det_d = FLAGS_d_hp;
-        auto hp_net = cv::gapi::ie::Params<HeadPose> { head_pose_det_m, head_pose_det_w, head_pose_det_d }
-                                                        .cfgOutputLayers({ "angle_y_fc", "angle_p_fc", "angle_r_fc" });
 
-        std::string landmarks_det_m = FLAGS_m_lm;
-        std::string landmarks_det_w = fileNameNoExt(FLAGS_m_lm) + ".bin";
-        std::string landmarks_det_d = FLAGS_d_lm;
-        auto lm_net = cv::gapi::ie::Params<FacialLandmark> { landmarks_det_m, landmarks_det_w, landmarks_det_d };
+        auto hp_net = cv::gapi::ie::Params<HeadPose> {
+            FLAGS_m_hp,                         // path to model
+            fileNameNoExt(FLAGS_m_hp) + ".bin", // path to weights
+            FLAGS_d_hp                          // device to use
+        }.cfgOutputLayers({ "angle_y_fc", "angle_p_fc", "angle_r_fc" });
 
-        std::string emo_det_m = FLAGS_m_em;
-        std::string emo_det_w = fileNameNoExt(FLAGS_m_em) + ".bin";
-        std::string emo_det_d = FLAGS_d_em;
-        auto emo_net = cv::gapi::ie::Params<Emotions> {  emo_det_m, emo_det_w, emo_det_d };
+        auto lm_net = cv::gapi::ie::Params<FacialLandmark> { 
+            FLAGS_m_lm,                        // path to model
+            fileNameNoExt(FLAGS_m_lm) + ".bin",// path to weights
+            FLAGS_d_lm                         // device to use
+        };
+
+        auto emo_net = cv::gapi::ie::Params<Emotions> {
+            FLAGS_m_em,                         // path to model
+            fileNameNoExt(FLAGS_m_em) + ".bin", // path to weights
+            FLAGS_d_em                          // device to use
+        };
 
         // Form a kernel package (with a single OpenCV-based implementation of our
         // post-processing) and a network package (holding our three networks).x
@@ -441,15 +442,16 @@ int main(int argc, char *argv[]) {
         out_vector += cv::gout(frame);
         out_vector += cv::gout(ssd_res);
         out_vector += cv::gout(face_hub);
-        if (age_gender_enable) out_vector += cv::gout(out_ages, out_genders);
-        if (headpose_enable)   out_vector += cv::gout(out_y_fc, out_p_fc, out_r_fc);
-        if (emotions_enable)   out_vector += cv::gout(out_emotions);
-        if (landmarks_enable)  out_vector += cv::gout(out_landmarks);
+        if (!FLAGS_m_ag.empty()) out_vector += cv::gout(out_ages, out_genders);
+        if (!FLAGS_m_hp.empty())   out_vector += cv::gout(out_y_fc, out_p_fc, out_r_fc);
+        if (!FLAGS_m_em.empty())   out_vector += cv::gout(out_emotions);
+        if (!FLAGS_m_lm.empty())  out_vector += cv::gout(out_landmarks);
 
         Visualizer::Ptr visualizer;
         if (!FLAGS_no_show) {
             cv::namedWindow("Detection results");
             visualizer = std::make_shared<Visualizer>();
+            visualizer->enableVisualisations(!FLAGS_m_ag.empty(), !FLAGS_m_hp.empty(), !FLAGS_m_em.empty(), !FLAGS_m_lm.empty());
         } else {
             std::cout<< "To close the application, press 'CTRL+C' here" << std::endl; 
         }
@@ -474,7 +476,7 @@ int main(int argc, char *argv[]) {
                     cv::waitKey(0);
                 }
             } else {
-                if (!FLAGS_no_show && emotions_enable && !FLAGS_no_show_emotion_bar) {
+                if (!FLAGS_no_show && !FLAGS_m_em.empty() && !FLAGS_no_show_emotion_bar) {
                     visualizer->enableEmotionBar(frame.size(), {"neutral",
                                                                 "happy",
                                                                 "sad",
@@ -496,32 +498,32 @@ int main(int argc, char *argv[]) {
                     Face::Ptr face;
 
                     cv::Rect rect = face_hub[i] & cv::Rect({0, 0}, frame.size());
-                    faceProcessing(frame, face, rect,
+                    faceDataUpdate(frame, face, rect,
                                    prev_faces, face_hub,
                                    id, FLAGS_no_smooth);
                     if(FLAGS_r)
                         rawOutputDetections(i, ssd_res, frame.size(), FLAGS_t);
 
-                    if (age_gender_enable) {
-                        ageGenderProcessing(face, out_ages[i], out_genders[i]);
+                    if (!FLAGS_m_ag.empty()) {
+                        ageGenderDataUpdate(face, out_ages[i], out_genders[i]);
                         if(FLAGS_r)
                             rawOutputAgeGender(i, out_ages[i], out_genders[i]);
                     }
 
-                    if (headpose_enable) {
-                        headPoseProcessing(face, out_y_fc[i], out_p_fc[i], out_r_fc[i]);
+                    if (!FLAGS_m_hp.empty()) {
+                        headPoseDataUpdate(face, out_y_fc[i], out_p_fc[i], out_r_fc[i]);
                         if(FLAGS_r)
                             rawOutputHeadpose(i, out_y_fc[i], out_p_fc[i], out_r_fc[i]);
                     }
 
-                    if (emotions_enable) {
-                        emotionsProcessing(face, out_emotions[i]);
+                    if (!FLAGS_m_em.empty()) {
+                        emotionsDataUpdate(face, out_emotions[i]);
                         if(FLAGS_r)
                             rawOutputEmotions(i, out_emotions[i]);
                     }
 
-                    if (landmarks_enable) {
-                        landmarksProcessing(face, out_landmarks[i]);
+                    if (!FLAGS_m_lm.empty()) {
+                        landmarksDataUpdate(face, out_landmarks[i]);
                         if(FLAGS_r)
                             rawOutputLandmarks(i, out_landmarks[i]);
                     }

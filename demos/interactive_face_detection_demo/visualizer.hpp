@@ -91,6 +91,8 @@ public:
 
     explicit Visualizer(int leftPadding = 10, int rightPadding = 10, int topPadding = 75, int bottomPadding = 10);
 
+    void enableVisualisations(bool isAgeGenderEnabled = false, bool isEmotionsEnabled = false,
+                              bool isHeadPoseEnabled = false, bool isLandmarksEnabled = false);
     void enableEmotionBar(const cv::Size inImgSize, std::vector<std::string> const& emotionNames);
     void draw(cv::Mat img, std::list<Face::Ptr> faces);
 
@@ -116,4 +118,9 @@ private:
     int bottomPadding;
     cv::Size emotionBarSize;
     size_t frameCounter;
+
+    bool _isAgeGenderEnabled;
+    bool _isEmotionsEnabled;
+    bool _isHeadPoseEnabled;
+    bool _isLandmarksEnabled;
 };
