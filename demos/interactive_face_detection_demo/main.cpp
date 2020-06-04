@@ -26,30 +26,6 @@
 #include "face.hpp"
 #include "visualizer.hpp"
 
-using namespace InferenceEngine;
-
-
-bool ParseAndCheckCommandLine(int argc, char *argv[]) {
-    // ---------------------------Parsing and validating input arguments--------------------------------------
-    gflags::ParseCommandLineNonHelpFlags(&argc, &argv, true);
-    if (FLAGS_h) {
-        showUsage();
-        showAvailableDevices();
-        return false;
-    }
-    slog::info << "Parsing input parameters" << slog::endl;
-
-    if (FLAGS_i.empty()) {
-        throw std::logic_error("Parameter -i is not set");
-    }
-
-    if (FLAGS_m.empty()) {
-        throw std::logic_error("Parameter -m is not set");
-    }
-
-    return true;
-}
-
 using AGInfo = std::tuple<cv::GMat, cv::GMat>;
 using HPInfo = std::tuple<cv::GMat, cv::GMat, cv::GMat>;
 G_API_NET(Faces,          <cv::GMat(cv::GMat)>, "face-detector");
@@ -151,7 +127,7 @@ void rawOutputDetections(const cv::Mat &ssd_result,
 
         if (image_id < 0.f) {  // indicates end of detections
             break;
-        }      
+        }
 
         int x      = static_cast<int>(rc_left   * upscale.width);
         int y      = static_cast<int>(rc_top    * upscale.height);
@@ -171,7 +147,7 @@ void rawOutputAgeGender(const int idx, const cv::Mat out_ages, const cv::Mat out
     float maleProb = gender_data[1];
     float age      = age_data[0] * 100;
 
-    std::cout << "[" << idx << "] element, male prob = " << maleProb << ", age = " << age << std::endl;        
+    std::cout << "[" << idx << "] element, male prob = " << maleProb << ", age = " << age << std::endl;
 }
 
 void rawOutputHeadpose(const int idx,
@@ -300,37 +276,44 @@ void landmarksDataUpdate(Face::Ptr &face, cv::Mat out_landmark) {
 
 int main(int argc, char *argv[]) {
     try {
-        std::cout << "InferenceEngine: " << GetInferenceEngineVersion() << std::endl;
-
         // ------------------------------ Parsing and validating of input arguments --------------------------
-        if (!ParseAndCheckCommandLine(argc, argv)) {
+
+        slog::info << "Parsing input parameters" << slog::endl;
+        gflags::ParseCommandLineNonHelpFlags(&argc, &argv, true);
+        if (FLAGS_h) {
+            showUsage();
+            showAvailableDevices();
             return 0;
         }
 
-        if (FLAGS_n_ag != 0)
-            std::cout << "[ WARNING ] Option \"-n_ag\" is not supported in this version of the demo." << std::endl;
-        if (FLAGS_n_hp != 0)
-            std::cout << "[ WARNING ] Option \"-n_hp\" is not supported in this version of the demo." << std::endl;
-        if (FLAGS_n_em != 0)
-            std::cout << "[ WARNING ] Option \"-n_em\" is not supported in this version of the demo." << std::endl;
-        if (FLAGS_n_lm != 0)
-            std::cout << "[ WARNING ] Option \"-n_lm\" is not supported in this version of the demo." << std::endl;
-        if (FLAGS_dyn_ag != false)
-            std::cout << "[ WARNING ] Option \"-dyn_ag\" is not supported in this version of the demo." << std::endl;
-        if (FLAGS_dyn_hp != false)
-            std::cout << "[ WARNING ] Option \"-dyn_hp\" is not supported in this version of the demo." << std::endl;
-        if (FLAGS_dyn_em != false)
-            std::cout << "[ WARNING ] Option \"-dyn_em\" is not supported in this version of the demo." << std::endl;
-        if (FLAGS_dyn_lm != false)
-            std::cout << "[ WARNING ] Option \"-dyn_lm\" is not supported in this version of the demo." << std::endl;
-        if (FLAGS_pc != false)
-            std::cout << "[ WARNING ] Option \"-pc\" is not supported in this version of the demo." << std::endl;
+        if (FLAGS_i.empty())
+            throw std::logic_error("Parameter -i is not set");
+        if (FLAGS_m.empty())
+            throw std::logic_error("Parameter -m is not set");
         if (!FLAGS_c.empty())
-            std::cout << "[ WARNING ] Option \"-c\" is not supported in this version of the demo." << std::endl;
+            slog::warn << "Option \"-c\" is not supported in this version of the demo." << slog::endl;
         if (!FLAGS_l.empty())
-            std::cout << "[ WARNING ] Option \"-l\" is not supported in this version of the demo." << std::endl;
+            slog::warn << "Option \"-l\" is not supported in this version of the demo." << slog::endl;
+        if (FLAGS_n_ag != 0)
+            slog::warn << "Option \"-n_ag\" is not supported in this version of the demo." << slog::endl;
+        if (FLAGS_n_hp != 0)
+            slog::warn << "Option \"-n_hp\" is not supported in this version of the demo." << slog::endl;
+        if (FLAGS_n_em != 0)
+            slog::warn << "Option \"-n_em\" is not supported in this version of the demo." << slog::endl;
+        if (FLAGS_n_lm != 0)
+            slog::warn << "Option \"-n_lm\" is not supported in this version of the demo." << slog::endl;
+        if (FLAGS_dyn_ag != false)
+            slog::warn << "Option \"-dyn_ag\" is not supported in this version of the demo." << slog::endl;
+        if (FLAGS_dyn_hp != false)
+            slog::warn << "Option \"-dyn_hp\" is not supported in this version of the demo." << slog::endl;
+        if (FLAGS_dyn_em != false)
+            slog::warn << "Option \"-dyn_em\" is not supported in this version of the demo." << slog::endl;
+        if (FLAGS_dyn_lm != false)
+            slog::warn << "Option \"-dyn_lm\" is not supported in this version of the demo." << slog::endl;
+        if (FLAGS_pc != false)
+            slog::warn << "Option \"-pc\" is not supported in this version of the demo." << slog::endl;
         if (FLAGS_fps != -1)
-            std::cout << "[ WARNING ] Option \"-fps\" is not supported in this version of the demo." << std::endl;
+            slog::warn << "Option \"-fps\" is not supported in this version of the demo." << slog::endl;
 
         std::cout << "To close the application, press 'CTRL+C' here";
         if (!FLAGS_no_show) {
@@ -381,7 +364,7 @@ int main(int argc, char *argv[]) {
                 return cv::GComputation(cv::GIn(in), std::move(outs));
         });
 
-        auto det_net = cv::gapi::ie::Params<Faces> { 
+        auto det_net = cv::gapi::ie::Params<Faces> {
             FLAGS_m,                         // path to model
             fileNameNoExt(FLAGS_m) + ".bin", // path to weights
             FLAGS_d                          // device to use
@@ -400,7 +383,7 @@ int main(int argc, char *argv[]) {
             FLAGS_d_hp                          // device to use
         }.cfgOutputLayers({ "angle_y_fc", "angle_p_fc", "angle_r_fc" });
 
-        auto lm_net = cv::gapi::ie::Params<FacialLandmark> { 
+        auto lm_net = cv::gapi::ie::Params<FacialLandmark> {
             FLAGS_m_lm,                        // path to model
             fileNameNoExt(FLAGS_m_lm) + ".bin",// path to weights
             FLAGS_d_lm                         // device to use
@@ -419,10 +402,10 @@ int main(int argc, char *argv[]) {
 
         cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
 
-        cv::GRunArgsP out_vector;        
+        cv::GRunArgsP out_vector;
         cv::Mat frame;
         out_vector += cv::gout(frame);
-        
+
         cv::Mat ssd_res;
         out_vector += cv::gout(ssd_res);
 
@@ -447,7 +430,7 @@ int main(int argc, char *argv[]) {
             visualizer = std::make_shared<Visualizer>();
             visualizer->enableVisualisations(!FLAGS_m_ag.empty(), !FLAGS_m_em.empty(), !FLAGS_m_hp.empty(), !FLAGS_m_lm.empty());
         } else {
-            std::cout<< "To close the application, press 'CTRL+C' here" << std::endl; 
+            std::cout<< "To close the application, press 'CTRL+C' here" << std::endl;
         }
 
         std::list<Face::Ptr> faces;
@@ -465,16 +448,7 @@ int main(int argc, char *argv[]) {
         {
             timer.start("total");
 
-            if (!stream.pull(std::move(out_vector))) {
-                std::cout<<"End of streaming" << std::endl;
-                if(FLAGS_loop_video) {
-                    stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
-                    stream.start();
-                } else if (!FLAGS_no_wait) {
-                    std::cout << "No more frames to process!" << std::endl;
-                    cv::waitKey(0);
-                }
-            } else {
+            if (stream.pull(std::move(out_vector))) {
                 if (!FLAGS_no_show && !FLAGS_m_em.empty() && !FLAGS_no_show_emotion_bar) {
                     visualizer->enableEmotionBar(frame.size(), {"neutral",
                                                                 "happy",
@@ -558,6 +532,15 @@ int main(int argc, char *argv[]) {
 
                 framesCounter++;
                 timer.finish("total");
+            } else { // End of streaming
+                std::cout<<"End of streaming" << std::endl;
+                if(FLAGS_loop_video) {
+                    stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
+                    stream.start();
+                } else if (!FLAGS_no_wait) {
+                    std::cout << "No more frames to process!" << std::endl;
+                    cv::waitKey(0);
+                }
             }
         }
 
