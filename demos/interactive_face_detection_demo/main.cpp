@@ -58,8 +58,8 @@ G_API_NET(HeadPose,       <HPInfo(cv::GMat)>,   "head-pose-recoginition");
 G_API_NET(FacialLandmark, <cv::GMat(cv::GMat)>, "facial-landmark-recoginition");
 G_API_NET(Emotions,       <cv::GMat(cv::GMat)>, "emotions-recognition");
 
-G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat, float, float, float, float)>, "custom.fd_postproc") {
-    static cv::GArrayDesc outMeta(const cv::GMatDesc &, const cv::GMatDesc &, float, float, float, float) {
+G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat, double, double, double, double)>, "custom.fd_postproc") {
+    static cv::GArrayDesc outMeta(const cv::GMatDesc &, const cv::GMatDesc &, double, double, double, double) {
         return cv::empty_array_desc();
     }
 };
@@ -67,10 +67,10 @@ G_API_OP(PostProc, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat, float, float, float
 GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     static void run(const cv::Mat &in_ssd_result,
                     const cv::Mat &in_frame,
-                    float threshold,
-                    float bb_enlarge_coefficient,
-                    float bb_dx_coefficient,
-                    float bb_dy_coefficient,
+                    double threshold,
+                    double bb_enlarge_coefficient,
+                    double bb_dx_coefficient,
+                    double bb_dy_coefficient,
                     std::vector<cv::Rect> &out_faces) {
         const auto &in_ssd_dims = in_ssd_result.size;
         CV_Assert(in_ssd_dims.dims() == 4u);
@@ -128,8 +128,7 @@ GAPI_OCV_KERNEL(OCVPostProc, PostProc) {
     }
 };
 
-void rawOutputDetections(const int i,
-                         const cv::Mat &ssd_result,
+void rawOutputDetections(const cv::Mat &ssd_result,
                          const cv::Size upscale,
                          const float detectionThreshold) {
     const auto &in_ssd_dims = ssd_result.size;
@@ -140,15 +139,20 @@ void rawOutputDetections(const int i,
 
     const float *data = ssd_result.ptr<float>();
 
-    const float image_id   = data[i * OBJECT_SIZE + 0]; // batch id
-    const float label      = data[i * OBJECT_SIZE + 1];
-    const float confidence = data[i * OBJECT_SIZE + 2];
-    const float rc_left    = data[i * OBJECT_SIZE + 3];
-    const float rc_top     = data[i * OBJECT_SIZE + 4];
-    const float rc_right   = data[i * OBJECT_SIZE + 5];
-    const float rc_bottom  = data[i * OBJECT_SIZE + 6];
+    const int detection_num = in_ssd_dims[2];
+    for (int i = 0; i < detection_num; ++i) {
+        const float image_id   = data[i * OBJECT_SIZE + 0];
+        const float label      = data[i * OBJECT_SIZE + 1];
+        const float confidence = data[i * OBJECT_SIZE + 2];
+        const float rc_left    = data[i * OBJECT_SIZE + 3];
+        const float rc_top     = data[i * OBJECT_SIZE + 4];
+        const float rc_right   = data[i * OBJECT_SIZE + 5];
+        const float rc_bottom  = data[i * OBJECT_SIZE + 6];
 
-    if (image_id >= 0) {
+        if (image_id < 0.f) {  // indicates end of detections
+            break;
+        }      
+
         int x      = static_cast<int>(rc_left   * upscale.width);
         int y      = static_cast<int>(rc_top    * upscale.height);
         int width  = static_cast<int>(rc_right  * upscale.width)  - x;
@@ -188,7 +192,6 @@ void rawOutputLandmarks(const int idx, const cv::Mat out_landmark) {
 
     std::cout << "[" << idx << "] element, normed facial landmarks coordinates (x, y):" << std::endl;
 
-    // FIXME: extract n_lm from out_landmarks[idx]
     int n_lm = 70;
     for (int i_lm = 0; i_lm < n_lm / 2; ++i_lm) {
         float normed_x = lm_data[2 * i_lm];
@@ -287,7 +290,7 @@ void landmarksDataUpdate(Face::Ptr &face, cv::Mat out_landmark) {
 
     std::vector<float> normedLandmarks;
     size_t n_lm = 70;
-    for (size_t i_lm = 0UL; i_lm < n_lm; ++i_lm) {
+    for (size_t i_lm = 0UL; i_lm < n_lm / 2; ++i_lm) {
         normedLandmarks.push_back(lm_data[2 * i_lm]);
         normedLandmarks.push_back(lm_data[2 * i_lm + 1]);
     }
@@ -321,22 +324,13 @@ int main(int argc, char *argv[]) {
         if (FLAGS_dyn_lm != false)
             std::cout << "[ WARNING ] Option \"-dyn_lm\" is not supported in this version of the demo." << std::endl;
         if (FLAGS_pc != false)
-            std::cout << "[ WARNING ] Option \"-pc\" is not supported in this version of the demo."
-                << std::endl;
+            std::cout << "[ WARNING ] Option \"-pc\" is not supported in this version of the demo." << std::endl;
         if (!FLAGS_c.empty())
-            std::cout << "[ WARNING ] Option \"-c\" is not supported in this version of the demo."
-                << std::endl;
+            std::cout << "[ WARNING ] Option \"-c\" is not supported in this version of the demo." << std::endl;
         if (!FLAGS_l.empty())
-            std::cout << "[ WARNING ] Option \"-l\" is not supported in this version of the demo."
-                << std::endl;
-
-        slog::info << "Start inference " << slog::endl;
-
-        std::ostringstream out;
-        size_t framesCounter = 0;
-        cv::Mat prev_frame, next_frame;
-        std::list<Face::Ptr> faces;
-        size_t id = 0;
+            std::cout << "[ WARNING ] Option \"-l\" is not supported in this version of the demo." << std::endl;
+        if (FLAGS_fps != -1)
+            std::cout << "[ WARNING ] Option \"-fps\" is not supported in this version of the demo." << std::endl;
 
         std::cout << "To close the application, press 'CTRL+C' here";
         if (!FLAGS_no_show) {
@@ -360,16 +354,13 @@ int main(int argc, char *argv[]) {
                                                           FLAGS_dy_coef);
                 outs += GOut(faces);
 
-                cv::GArray<cv::GMat> ages;
-                cv::GArray<cv::GMat> genders;
+                cv::GArray<cv::GMat> ages, genders;
                 if (!FLAGS_m_ag.empty()) {
                     std::tie(ages, genders) = cv::gapi::infer<AgeGender>(faces, in);
                     outs += GOut(ages, genders);
                 }
 
-                cv::GArray<cv::GMat> y_fc;
-                cv::GArray<cv::GMat> p_fc;
-                cv::GArray<cv::GMat> r_fc;
+                cv::GArray<cv::GMat> y_fc, p_fc, r_fc;
                 if (!FLAGS_m_hp.empty()) {
                     std::tie(y_fc, p_fc, r_fc) = cv::gapi::infer<HeadPose>(faces, in);
                     outs += GOut(y_fc, p_fc, r_fc);
@@ -413,7 +404,7 @@ int main(int argc, char *argv[]) {
             FLAGS_m_lm,                        // path to model
             fileNameNoExt(FLAGS_m_lm) + ".bin",// path to weights
             FLAGS_d_lm                         // device to use
-        };
+        }.cfgOutputLayers({ "align_fc3" });
 
         auto emo_net = cv::gapi::ie::Params<Emotions> {
             FLAGS_m_em,                         // path to model
@@ -428,38 +419,46 @@ int main(int argc, char *argv[]) {
 
         cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
 
+        cv::GRunArgsP out_vector;        
         cv::Mat frame;
-        cv::Mat ssd_res;
-        std::vector<cv::Rect> face_hub;
-        std::vector<cv::Mat> out_ages, out_genders;
-        std::vector<cv::Mat> out_y_fc, out_p_fc, out_r_fc;
-        std::vector<cv::Mat> out_landmarks;
-        std::vector<cv::Mat> out_emotions;
-
-        stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
-
-        cv::GRunArgsP out_vector;
         out_vector += cv::gout(frame);
+        
+        cv::Mat ssd_res;
         out_vector += cv::gout(ssd_res);
+
+        std::vector<cv::Rect> face_hub;
         out_vector += cv::gout(face_hub);
+
+        std::vector<cv::Mat> out_ages, out_genders;
         if (!FLAGS_m_ag.empty()) out_vector += cv::gout(out_ages, out_genders);
-        if (!FLAGS_m_hp.empty())   out_vector += cv::gout(out_y_fc, out_p_fc, out_r_fc);
-        if (!FLAGS_m_em.empty())   out_vector += cv::gout(out_emotions);
-        if (!FLAGS_m_lm.empty())  out_vector += cv::gout(out_landmarks);
+
+        std::vector<cv::Mat> out_y_fc, out_p_fc, out_r_fc;
+        if (!FLAGS_m_hp.empty()) out_vector += cv::gout(out_y_fc, out_p_fc, out_r_fc);
+
+        std::vector<cv::Mat> out_emotions;
+        if (!FLAGS_m_em.empty()) out_vector += cv::gout(out_emotions);
+
+        std::vector<cv::Mat> out_landmarks;
+        if (!FLAGS_m_lm.empty()) out_vector += cv::gout(out_landmarks);
 
         Visualizer::Ptr visualizer;
         if (!FLAGS_no_show) {
             cv::namedWindow("Detection results");
             visualizer = std::make_shared<Visualizer>();
-            visualizer->enableVisualisations(!FLAGS_m_ag.empty(), !FLAGS_m_hp.empty(), !FLAGS_m_em.empty(), !FLAGS_m_lm.empty());
+            visualizer->enableVisualisations(!FLAGS_m_ag.empty(), !FLAGS_m_em.empty(), !FLAGS_m_hp.empty(), !FLAGS_m_lm.empty());
         } else {
             std::cout<< "To close the application, press 'CTRL+C' here" << std::endl; 
         }
 
+        std::list<Face::Ptr> faces;
+        std::ostringstream out;
+        size_t framesCounter = 0;
+        size_t id = 0;
         cv::VideoWriter videoWriter;
 
+        slog::info << "Start inference " << slog::endl;
         Timer timer;
-
+        stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(FLAGS_i));
         stream.start();
 
         while (stream.running())
@@ -493,6 +492,10 @@ int main(int argc, char *argv[]) {
 
                 faces.clear();
 
+                // Raw output detected faces
+                if(FLAGS_r)
+                    rawOutputDetections(ssd_res, frame.size(), FLAGS_t);
+
                 // For every detected face
                 for (size_t i = 0; i < face_hub.size(); i++) {
                     Face::Ptr face;
@@ -501,8 +504,6 @@ int main(int argc, char *argv[]) {
                     faceDataUpdate(frame, face, rect,
                                    prev_faces, face_hub,
                                    id, FLAGS_no_smooth);
-                    if(FLAGS_r)
-                        rawOutputDetections(i, ssd_res, frame.size(), FLAGS_t);
 
                     if (!FLAGS_m_ag.empty()) {
                         ageGenderDataUpdate(face, out_ages[i], out_genders[i]);
@@ -510,16 +511,16 @@ int main(int argc, char *argv[]) {
                             rawOutputAgeGender(i, out_ages[i], out_genders[i]);
                     }
 
-                    if (!FLAGS_m_hp.empty()) {
-                        headPoseDataUpdate(face, out_y_fc[i], out_p_fc[i], out_r_fc[i]);
-                        if(FLAGS_r)
-                            rawOutputHeadpose(i, out_y_fc[i], out_p_fc[i], out_r_fc[i]);
-                    }
-
                     if (!FLAGS_m_em.empty()) {
                         emotionsDataUpdate(face, out_emotions[i]);
                         if(FLAGS_r)
                             rawOutputEmotions(i, out_emotions[i]);
+                    }
+
+                    if (!FLAGS_m_hp.empty()) {
+                        headPoseDataUpdate(face, out_y_fc[i], out_p_fc[i], out_r_fc[i]);
+                        if(FLAGS_r)
+                            rawOutputHeadpose(i, out_y_fc[i], out_p_fc[i], out_r_fc[i]);
                     }
 
                     if (!FLAGS_m_lm.empty()) {
@@ -552,7 +553,7 @@ int main(int argc, char *argv[]) {
                     videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
                 }
                 if (!FLAGS_o.empty()) {
-                    videoWriter.write(prev_frame);
+                    videoWriter.write(frame);
                 }
 
                 framesCounter++;

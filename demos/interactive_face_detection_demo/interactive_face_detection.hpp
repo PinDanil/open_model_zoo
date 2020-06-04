@@ -239,6 +239,10 @@ DEFINE_double(dx_coef, 1, dx_coef_output_message);
 /// It is an optional parameter
 DEFINE_double(dy_coef, 1, dy_coef_output_message);
 
+/// \brief Define a parameter to play video with defined fps<br>
+/// It is an optional parameter
+DEFINE_double(fps, -1, fps_output_message);
+
 /// \brief Define a flag to loop video<br>
 /// It is an optional parameter
 DEFINE_bool(loop_video, false, loop_video_output_message);

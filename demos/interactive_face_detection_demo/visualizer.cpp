@@ -163,8 +163,8 @@ Visualizer::Visualizer(int leftPadding, int rightPadding, int topPadding, int bo
 void Visualizer::enableVisualisations(bool isAgeGenderEnabled, bool isEmotionsEnabled,
                                       bool isHeadPoseEnabled, bool isLandmarksEnabled) {
     _isAgeGenderEnabled = isAgeGenderEnabled;
-    _isEmotionsEnabled = isEmotionsEnabled;
-    _isHeadPoseEnabled = isHeadPoseEnabled;
+    _isEmotionsEnabled  = isEmotionsEnabled;
+    _isHeadPoseEnabled  = isHeadPoseEnabled;
     _isLandmarksEnabled = isLandmarksEnabled;
 }
 
