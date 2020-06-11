@@ -438,6 +438,7 @@ int main(int argc, char *argv[]) {
         size_t framesCounter = 0;
         size_t id = 0;
         cv::VideoWriter videoWriter;
+        bool emoBarEnabled = false;
 
         slog::info << "Start inference " << slog::endl;
         Timer timer;
@@ -449,12 +450,14 @@ int main(int argc, char *argv[]) {
             timer.start("total");
 
             if (stream.pull(std::move(out_vector))) {
-                if (!FLAGS_no_show && !FLAGS_m_em.empty() && !FLAGS_no_show_emotion_bar) {
+                if (!emoBarEnabled && !FLAGS_no_show &&
+                    !FLAGS_m_em.empty() && !FLAGS_no_show_emotion_bar) {
                     visualizer->enableEmotionBar(frame.size(), {"neutral",
                                                                 "happy",
                                                                 "sad",
                                                                 "surprise",
                                                                 "anger"});
+                    emoBarEnabled = true;
                 }
 
                 //  Postprocessing

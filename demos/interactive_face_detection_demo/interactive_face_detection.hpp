@@ -28,23 +28,28 @@ static const char plugin_message[] = "Plugin name. For example, CPU. If this par
 
 /// @brief Message for assigning face detection calculation to device
 static const char target_device_message[] = "Optional. Target device for Face Detection network (the list of available devices is shown below). " \
-"Default value is CPU. The demo will look for a suitable plugin for a specified device.";
+"Default value is CPU. Use \"-d HETERO:<comma-separated_devices_list>\" format to specify HETERO plugin. " \
+"The demo will look for a suitable plugin for a specified device.";
 
 /// @brief Message for assigning age/gender calculation to device
 static const char target_device_message_ag[] = "Optional. Target device for Age/Gender Recognition network (the list of available devices is shown below). " \
-"Default value is CPU. The demo will look for a suitable plugin for a specified device.";
+"Default value is CPU. Use \"-d HETERO:<comma-separated_devices_list>\" format to specify HETERO plugin. " \
+"The demo will look for a suitable plugin for a specified device.";
 
 /// @brief Message for assigning head pose calculation to device
 static const char target_device_message_hp[] = "Optional. Target device for Head Pose Estimation network (the list of available devices is shown below). " \
-"Default value is CPU. The demo will look for a suitable plugin for a specified device.";
+"Default value is CPU. Use \"-d HETERO:<comma-separated_devices_list>\" format to specify HETERO plugin. " \
+"The demo will look for a suitable plugin for a specified device.";
 
 /// @brief Message for assigning emotions calculation to device
 static const char target_device_message_em[] = "Optional. Target device for Emotions Recognition network (the list of available devices is shown below). " \
-"Default value is CPU. The demo will look for a suitable plugin for a specified device.";
+"Default value is CPU. Use \"-d HETERO:<comma-separated_devices_list>\" format to specify HETERO plugin. " \
+"The demo will look for a suitable plugin for a specified device.";
 
 /// @brief Message for assigning Facial Landmarks Estimation network to device
 static const char target_device_message_lm[] = "Optional. Target device for Facial Landmarks Estimation network " \
-"(the list of available devices is shown below). Default value is CPU. The demo will look for a suitable plugin for device specified.";
+"(the list of available devices is shown below). Default value is CPU. Use \"-d HETERO:<comma-separated_devices_list>\" format to specify HETERO plugin. " \
+"The demo will look for a suitable plugin for device specified.";
 
 // TODO: Support this option
 /// @brief Message for the maximum number of simultaneously processed faces for Age Gender network
