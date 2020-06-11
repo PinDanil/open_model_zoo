@@ -3,12 +3,8 @@
 //
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-#pragma once
 
-#include <string>
-#include <vector>
 #include <gflags/gflags.h>
-#include <iostream>
 
 /// @brief Message for help argument
 static const char help_message[] = "Print a usage message";
@@ -55,41 +51,52 @@ static const char target_device_message_lm[] = "Optional. Target device for Faci
 "(the list of available devices is shown below). Default value is CPU. Use \"-d HETERO:<comma-separated_devices_list>\" format to specify HETERO plugin. " \
 "The demo will look for a suitable plugin for device specified.";
 
+// TODO: Support this option
 /// @brief Message for the maximum number of simultaneously processed faces for Age Gender network
 static const char num_batch_ag_message[] = "Optional. Number of maximum simultaneously processed faces for Age/Gender Recognition network " \
 "(by default, it is 16)";
 
+// TODO: Support this option
 /// @brief Message for the maximum number of simultaneously processed faces for Head Pose network
 static const char num_batch_hp_message[] = "Optional. Number of maximum simultaneously processed faces for Head Pose Estimation network " \
 "(by default, it is 16)";
 
+// TODO: Support this option
 /// @brief Message for the maximum number of simultaneously processed faces for Emotions network
 static const char num_batch_em_message[] = "Optional. Number of maximum simultaneously processed faces for Emotions Recognition network " \
 "(by default, it is 16)";
 
+// TODO: Support this option
 /// @brief Message for the maximum number of simultaneously processed faces for Facial Landmarks Estimation network
 static const char num_batch_lm_message[] = "Optional. Number of maximum simultaneously processed faces for Facial Landmarks Estimation network " \
 "(by default, it is 16)";
 
+// TODO: Support this option
 /// @brief Message for dynamic batching support for AgeGender net
 static const char dyn_batch_ag_message[] = "Optional. Enable dynamic batch size for Age/Gender Recognition network";
 
+// TODO: Support this option
 /// @brief Message for dynamic batching support for HeadPose net
 static const char dyn_batch_hp_message[] = "Optional. Enable dynamic batch size for Head Pose Estimation network";
 
+// TODO: Support this option
 /// @brief Message for dynamic batching support for Emotions net
 static const char dyn_batch_em_message[] = "Optional. Enable dynamic batch size for Emotions Recognition network";
 
+// TODO: Support this option
 /// @brief Message for dynamic batching support for Facial Landmarks Estimation network
 static const char dyn_batch_lm_message[] = "Optional. Enable dynamic batch size for Facial Landmarks Estimation network";
 
+// TODO: Support this option
 /// @brief Message for performance counters
 static const char performance_counter_message[] = "Optional. Enable per-layer performance report";
 
+// TODO: Support this option
 /// @brief Message for GPU custom kernels description
 static const char custom_cldnn_message[] = "Required for GPU custom kernels. "\
 "Absolute path to an .xml file with the kernels description.";
 
+// TODO: Support this option
 /// @brief Message for user library argument
 static const char custom_cpu_library_message[] = "Required for CPU custom layers. " \
 "Absolute path to a shared library with the kernels implementation.";
@@ -109,9 +116,6 @@ static const char no_wait_for_keypress_message[] = "Optional. Do not wait for ke
 /// @brief Message do not show processed video
 static const char no_show_processed_video[] = "Optional. Do not show processed video.";
 
-/// @brief Message for asynchronous mode
-static const char async_message[] = "Optional. Enable asynchronous mode";
-
 /// @brief Message for shifting coefficient by dx for detected faces
 static const char dx_coef_output_message[] = "Optional. Coefficient to shift the bounding box around the detected face along the Ox axis";
 
@@ -121,6 +125,7 @@ static const char dy_coef_output_message[] = "Optional. Coefficient to shift the
 /// @brief Message for fps argument
 static const char fps_output_message[] = "Optional. Maximum FPS for playing video";
 
+// TODO: Make this option valid for single image case
 /// @brief Message for looping video argument
 static const char loop_video_output_message[] = "Optional. Enable playing video on a loop";
 
@@ -177,25 +182,25 @@ DEFINE_string(d_em, "CPU", target_device_message_em);
 DEFINE_string(d_lm, "CPU", target_device_message_lm);
 
 /// \brief Define parameter for maximum batch size for Age/Gender Recognition network<br>
-DEFINE_uint32(n_ag, 16, num_batch_ag_message);
+DEFINE_uint32(n_ag, 0, num_batch_ag_message);
 
 /// \brief Define parameter to enable dynamic batch size for Age/Gender Recognition network<br>
 DEFINE_bool(dyn_ag, false, dyn_batch_ag_message);
 
 /// \brief Define parameter for maximum batch size for Head Pose Estimation network<br>
-DEFINE_uint32(n_hp, 16, num_batch_hp_message);
+DEFINE_uint32(n_hp, 0, num_batch_hp_message);
 
 /// \brief Define parameter to enable dynamic batch size for Head Pose Estimation network<br>
 DEFINE_bool(dyn_hp, false, dyn_batch_hp_message);
 
 /// \brief Define parameter for maximum batch size for Emotions Recognition network<br>
-DEFINE_uint32(n_em, 16, num_batch_em_message);
+DEFINE_uint32(n_em, 0, num_batch_em_message);
 
 /// \brief Define parameter to enable dynamic batch size for Emotions Recognition network<br>
 DEFINE_bool(dyn_em, false, dyn_batch_em_message);
 
 /// \brief Define parameter for maximum batch size for Facial Landmarks Estimation network<br>
-DEFINE_uint32(n_lm, 16, num_batch_em_message);
+DEFINE_uint32(n_lm, 0, num_batch_em_message);
 
 /// \brief Define parameter to enable dynamic batch size for Facial Landmarks Estimation network<br>
 DEFINE_bool(dyn_lm, false, dyn_batch_em_message);
@@ -231,10 +236,6 @@ DEFINE_bool(no_wait, false, no_wait_for_keypress_message);
 /// It is an optional parameter
 DEFINE_bool(no_show, false, no_show_processed_video);
 
-/// \brief Define a flag to enable aynchronous execution<br>
-/// It is an optional parameter
-DEFINE_bool(async, false, async_message);
-
 /// \brief Define a parameter to shift face bounding box by Ox for more robust operation of face analytics networks<br>
 /// It is an optional parameter
 DEFINE_double(dx_coef, 1, dx_coef_output_message);
@@ -258,7 +259,6 @@ DEFINE_bool(no_smooth, false, no_smooth_output_message);
 /// \brief Define a flag to disable showing emotion bar<br>
 /// It is an optional parameter
 DEFINE_bool(no_show_emotion_bar, false, no_show_emotion_bar_message);
-
 
 /**
 * \brief This function shows a help message
@@ -293,7 +293,6 @@ static void showUsage() {
     std::cout << "    -dyn_hp                    " << dyn_batch_hp_message << std::endl;
     std::cout << "    -dyn_em                    " << dyn_batch_em_message << std::endl;
     std::cout << "    -dyn_lm                    " << dyn_batch_lm_message << std::endl;
-    std::cout << "    -async                     " << async_message << std::endl;
     std::cout << "    -no_wait                   " << no_wait_for_keypress_message << std::endl;
     std::cout << "    -no_show                   " << no_show_processed_video << std::endl;
     std::cout << "    -pc                        " << performance_counter_message << std::endl;

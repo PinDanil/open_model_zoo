@@ -2,19 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include <string>
-#include <map>
-#include <utility>
-#include <list>
-#include <vector>
-
 #include "face.hpp"
 
 Face::Face(size_t id, cv::Rect& location):
     _location(location), _intensity_mean(0.f), _id(id), _age(-1),
-    _maleScore(0), _femaleScore(0), _headPose({0.f, 0.f, 0.f}),
-    _isAgeGenderEnabled(false), _isEmotionsEnabled(false), _isHeadPoseEnabled(false), _isLandmarksEnabled(false) {
-}
+    _maleScore(0), _femaleScore(0), _headPose({0.f, 0.f, 0.f}) {}
 
 void Face::updateAge(float value) {
     _age = (_age == -1) ? value : 0.95f * _age + 0.05f * value;
@@ -41,7 +33,7 @@ void Face::updateEmotions(std::map<std::string, float> values) {
     }
 }
 
-void Face::updateHeadPose(HeadPoseDetection::Results values) {
+void Face::updateHeadPose(HeadPoseResults values) {
     _headPose = values;
 }
 
@@ -69,7 +61,7 @@ std::pair<std::string, float> Face::getMainEmotion() {
     return std::make_pair(x->first, x->second);
 }
 
-HeadPoseDetection::Results Face::getHeadPose() {
+HeadPoseResults Face::getHeadPose() {
     return _headPose;
 }
 
@@ -79,32 +71,6 @@ const std::vector<float>& Face::getLandmarks() {
 
 size_t Face::getId() {
     return _id;
-}
-
-void Face::ageGenderEnable(bool value) {
-    _isAgeGenderEnabled = value;
-}
-void Face::emotionsEnable(bool value) {
-    _isEmotionsEnabled = value;
-}
-void Face::headPoseEnable(bool value) {
-    _isHeadPoseEnabled = value;
-}
-void Face::landmarksEnable(bool value) {
-    _isLandmarksEnabled = value;
-}
-
-bool Face::isAgeGenderEnabled() {
-    return _isAgeGenderEnabled;
-}
-bool Face::isEmotionsEnabled() {
-    return _isEmotionsEnabled;
-}
-bool Face::isHeadPoseEnabled() {
-    return _isHeadPoseEnabled;
-}
-bool Face::isLandmarksEnabled() {
-    return _isLandmarksEnabled;
 }
 
 float calcIoU(cv::Rect& src, cv::Rect& dst) {
@@ -125,6 +91,7 @@ float calcMean(const cv::Mat& src) {
 Face::Ptr matchFace(cv::Rect rect, std::list<Face::Ptr>& faces) {
     Face::Ptr face(nullptr);
     float maxIoU = 0.55f;
+
     for (auto&& f : faces) {
         float iou = calcIoU(rect, f->_location);
         if (iou > maxIoU) {
