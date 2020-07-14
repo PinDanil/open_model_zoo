@@ -1,6 +1,7 @@
 # Instance Segmentation Python* Demo
 
 This demo shows how to run Instance Segmentation models from `Detectron` or `maskrcnn-benchmark` using OpenVINO&trade;.
+These models should be obtained through [OpenVINO&trade; Training Extensions (OTE)](https://github.com/opencv/openvino_training_extensions/tree/develop/pytorch_toolkit/instance_segmentation#get-pretrained-models).
 
 > **NOTE**: Only batch size of 1 is supported.
 
@@ -70,6 +71,7 @@ Options:
   -pc, --perf_counts    Optional. Report performance counters.
   -r, --raw_output_message
                         Optional. Output inference results raw values.
+  --no_show             Optional. Don't show output
 ```
 
 Running the application with an empty list of options yields the short version of the usage message and an error message.
@@ -83,7 +85,6 @@ To run the demo, please provide paths to the model in the IR format, to a file w
 python3 instance_segmentation_demo/instance_segmentation_demo.py \
     -m <path_to_model>/instance-segmentation-security-0050.xml \
     --label instance_segmentation_demo/coco_labels.txt \
-    -l <openvino_root>/inference_engine/lib/intel64/libcpu_extension_avx2.so \
     --no_keep_aspect_ratio \
     -i 0 \
     --delay 1

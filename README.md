@@ -1,6 +1,5 @@
 # [OpenVINO™ Toolkit](https://01.org/openvinotoolkit) - Open Model Zoo repository
-[![Build Status](http://134.191.240.124/buildStatus/icon?job=omz/2018/trigger)](http://134.191.240.124/job/omz/job/2018/job/trigger/)
-[![Stable release](https://img.shields.io/badge/version-2019_R3-green.svg)](https://github.com/opencv/open_model_zoo/releases/tag/2019_R3)
+[![Stable release](https://img.shields.io/badge/version-2020.3-green.svg)](https://github.com/opencv/open_model_zoo/releases/tag/2020.3)
 [![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/open_model_zoo/community)
 [![Apache License Version 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
 
@@ -34,6 +33,8 @@ We welcome community contributions to the Open Model Zoo repository. If you have
 * In case of a larger feature, provide a relevant demo.
 * Submit a pull request at https://github.com/opencv/open_model_zoo/pulls
 
+You can find additional information about model contribution [here](CONTRIBUTING.md).
+
 We will review your contribution and, if any additional fixes or modifications are needed, may give you feedback to guide you. When accepted, your pull request will be merged into the GitHub* repositories.
 
 Open Model Zoo is licensed under Apache License, Version 2.0. By contributing to the project, you agree to the license and copyright terms therein and release your contribution under these terms.
@@ -42,7 +43,7 @@ Open Model Zoo is licensed under Apache License, Version 2.0. By contributing to
 Please report questions, issues and suggestions using:
 * [\#open_model_zoo](https://stackoverflow.com/search?q=%23open_model_zoo) tag on StackOverflow*
 * [GitHub* Issues](https://github.com/opencv/open_model_zoo/issues)
-* [Forum](https://software.intel.com/en-us/forums/computer-vision)
+* [Forum](https://software.intel.com/en-us/forums/intel-distribution-of-openvino-toolkit)
 * [Gitter](https://gitter.im/open_model_zoo/community)
 
 ---

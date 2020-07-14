@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 import logging as log
 from time import time
-from openvino.inference_engine import IENetwork, IECore
+from openvino.inference_engine import IECore
 
 classes_color_map = [
     (150, 150, 150),
@@ -72,16 +72,14 @@ def build_argparser():
 def main():
     log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=sys.stdout)
     args = build_argparser().parse_args()
-    model_xml = args.model
-    model_bin = os.path.splitext(model_xml)[0] + ".bin"
 
     log.info("Creating Inference Engine")
     ie = IECore()
     if args.cpu_extension and 'CPU' in args.device:
         ie.add_extension(args.cpu_extension, "CPU")
     # Read IR
-    log.info("Loading network files:\n\t{}\n\t{}".format(model_xml, model_bin))
-    net = IENetwork(model=model_xml, weights=model_bin)
+    log.info("Loading network")
+    net = ie.read_network(args.model, os.path.splitext(args.model)[0] + ".bin")
 
     if "CPU" in args.device:
         supported_layers = ie.query_network(net, "CPU")
@@ -100,11 +98,17 @@ def main():
     out_blob = next(iter(net.outputs))
     net.batch_size = len(args.input)
 
+    # NB: This is required to load the image as uint8 np.array
+    #     Without this step the input blob is loaded in FP32 precision,
+    #     this requires additional operation and more memory.
+    net.inputs[input_blob].precision = "U8"
+
     # Read and pre-process input images
     n, c, h, w = net.inputs[input_blob].shape
     images = np.ndarray(shape=(n, c, h, w))
     for i in range(n):
         image = cv2.imread(args.input[i])
+        assert image.dtype == np.uint8
         if image.shape[:-1] != (h, w):
             log.warning("Image {} is resized from {} to {}".format(args.input[i], image.shape[:-1], (h, w)))
             image = cv2.resize(image, (w, h))

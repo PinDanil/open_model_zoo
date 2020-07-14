@@ -16,7 +16,6 @@ import os
 
 import logging as log
 import numpy as np
-from openvino.inference_engine import IENetwork, IECore # pylint: disable=import-error,E0611
 import cv2 as cv
 
 
@@ -59,17 +58,16 @@ class IEModel:
         return self.inputs_info[self.input_key]
 
 
-def load_ie_model(model_xml, device, plugin_dir, cpu_extension='', num_reqs=1):
+def load_ie_model(ie, model_xml, device, plugin_dir, cpu_extension='', num_reqs=1):
     """Loads a model in the Inference Engine format"""
-    model_bin = os.path.splitext(model_xml)[0] + ".bin"
     # Plugin initialization for specified device and load extensions library if specified
-    log.info("Creating Inference Engine")
-    ie = IECore()
+    log.info("Initializing Inference Engine plugin for %s ", device)
+
     if cpu_extension and 'CPU' in device:
         ie.add_extension(cpu_extension, 'CPU')
     # Read IR
-    log.info("Loading network files:\n\t%s\n\t%s", model_xml, model_bin)
-    net = IENetwork(model=model_xml, weights=model_bin)
+    log.info("Loading network")
+    net = ie.read_network(model_xml, os.path.splitext(model_xml)[0] + ".bin")
 
     if "CPU" in device:
         supported_layers = ie.query_network(net, "CPU")
@@ -83,8 +81,8 @@ def load_ie_model(model_xml, device, plugin_dir, cpu_extension='', num_reqs=1):
 
     assert len(net.inputs.keys()) == 1 or len(net.inputs.keys()) == 2, \
         "Supports topologies with only 1 or 2 inputs"
-    assert len(net.outputs) == 1 or len(net.outputs) == 5, \
-        "Supports topologies with only 1 or 5 outputs"
+    assert len(net.outputs) == 1 or len(net.outputs) == 4 or len(net.outputs) == 5, \
+        "Supports topologies with only 1, 4 or 5 outputs"
 
     log.info("Preparing input blobs")
     input_blob = next(iter(net.inputs))

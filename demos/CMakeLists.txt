@@ -6,6 +6,8 @@ cmake_minimum_required (VERSION 2.8.12)
 
 project(Demos)
 
+option(ENABLE_PYTHON "Whether to build extension modules for Python demos" OFF)
+
 if (CMAKE_BUILD_TYPE STREQUAL "")
     message(STATUS "CMAKE_BUILD_TYPE not defined, 'Release' will be used")
     set(CMAKE_BUILD_TYPE "Release")
@@ -97,7 +99,7 @@ if (${CMAKE_CXX_COMPILER_ID} STREQUAL GNU)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 endif()
 
-add_subdirectory(common/format_reader)
+add_subdirectory(common)
 
 # samples build can be switched off during whole IE build
 if (IE_MAIN_SOURCE_DIR AND NOT ENABLE_SAMPLES)
@@ -155,19 +157,15 @@ macro(ie_add_sample)
         endif()
     endif()
 
-    if(TARGET IE::ie_cpu_extension)
-        add_definitions(-DWITH_EXTENSIONS)
-    endif()
-
     # Create named folders for the sources within the .vcproj
     # Empty name lists them directly under the .vcproj
-    source_group("src" FILES ${IE_SAMPLES_SOURCES})
-    if(IE_SAMPLES_HEADERS)
-        source_group("include" FILES ${IE_SAMPLES_HEADERS})
+    source_group("src" FILES ${IE_SAMPLE_SOURCES})
+    if(IE_SAMPLE_HEADERS)
+        source_group("include" FILES ${IE_SAMPLE_HEADERS})
     endif()
 
     # Create executable file from sources
-    add_executable(${IE_SAMPLE_NAME} ${IE_SAMPLE_SOURCES} ${IE_SAMPLES_HEADERS})
+    add_executable(${IE_SAMPLE_NAME} ${IE_SAMPLE_SOURCES} ${IE_SAMPLE_HEADERS})
 
     if(WIN32)
         set_target_properties(${IE_SAMPLE_NAME} PROPERTIES COMPILE_PDB_NAME ${IE_SAMPLE_NAME})
@@ -177,10 +175,6 @@ macro(ie_add_sample)
         target_include_directories(${IE_SAMPLE_NAME} PRIVATE ${IE_SAMPLE_INCLUDE_DIRECTORIES})
     endif()
     target_include_directories(${IE_SAMPLE_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../common")
-
-    if(TARGET IE::ie_cpu_extension)
-        target_link_libraries(${IE_SAMPLE_NAME} PRIVATE IE::ie_cpu_extension)
-    endif()
 
     target_link_libraries(${IE_SAMPLE_NAME} PRIVATE ${OpenCV_LIBRARIES} ${InferenceEngine_LIBRARIES}
                                                     ${IE_SAMPLE_DEPENDENCIES} gflags)
@@ -211,8 +205,17 @@ else()
     find_package(InferenceEngine 2.0 REQUIRED)
 endif()
 
+find_package(ngraph REQUIRED)
+
 # collect all samples subdirectories
 file(GLOB samples_dirs RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *)
 # skip building of unnecessary subdirectories
 list(REMOVE_ITEM samples_dirs common thirdparty)
 add_samples_to_build(${samples_dirs})
+
+if(ENABLE_PYTHON)
+    find_package(PythonInterp 3.5 REQUIRED)
+    find_package(PythonLibs "${PYTHON_VERSION_STRING}" EXACT REQUIRED)
+
+    add_subdirectory(python_demos/human_pose_estimation_3d_demo/pose_extractor)
+endif()

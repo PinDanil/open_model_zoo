@@ -11,6 +11,9 @@ based on configuration files in the models' directories.
 * `converter.py` (model converter) converts the models that are not in the
   Inference Engine IR format into that format using Model Optimizer.
 
+* `quantizer.py` (model quantizer) quantizes full-precision models in the IR
+  format into low-precision versions using Post-Training Optimization Toolkit.
+
 * `info_dumper.py` (model information dumper) prints information about the models
   in a stable machine-readable format.
 
@@ -32,12 +35,31 @@ For the model converter, you will also need to install the OpenVINO&trade;
 toolkit and the prerequisite libraries for Model Optimizer. See the
 [OpenVINO toolkit documentation](https://docs.openvinotoolkit.org/) for details.
 
-If you using models from PyTorch framework, you will also need to use intermediate
-conversion to ONNX format. To use automatic conversion install additional dependencies:
+If you using models from PyTorch or Caffe2 framework, you will also need to use intermediate
+conversion to ONNX format. To use automatic conversion install additional dependencies.
 
+For models from PyTorch:
 ```sh
 python3 -mpip install --user -r ./requirements-pytorch.in
 ```
+For models from Caffe2:
+```sh
+python3 -mpip install --user -r ./requirements-caffe2.in
+```
+
+When running the model downloader with Python 3.5.x on macOS, you may encounter
+an error similar to the following:
+
+> requests.exceptions.SSLError: [...] (Caused by SSLError(SSLError(1, '[SSL: TLSV1_ALERT_PROTOCOL_VERSION]
+tlsv1 alert protocol version (\_ssl.c:719)'),))
+
+You can work around this by installing additional packages:
+
+```sh
+python3 -mpip install --user 'requests[security]'
+```
+
+Alternatively, upgrade to Python 3.6 or a later version.
 
 Model downloader usage
 ----------------------
@@ -48,16 +70,17 @@ The basic usage is to run the script like this:
 ./downloader.py --all
 ```
 
-This will download all models into a directory tree rooted in the current
-directory. To download into a different directory, use the `-o`/`--output_dir`
-option:
+This will download all models. The `--all` option can be replaced with
+other filter options to download only a subset of models. See the "Shared options"
+section.
+
+By default, the script will download models into a directory tree rooted
+in the current directory. To download into a different directory, use
+the `-o`/`--output_dir` option:
 
 ```sh
 ./downloader.py --all --output_dir my/download/directory
 ```
-
-The `--all` option can be replaced with other filter options to download only
-a subset of models. See the "Shared options" section.
 
 You may use `--precisions` flag to specify comma separated precisions of weights
 to be downloaded.
@@ -199,8 +222,11 @@ The basic usage is to run the script like this:
 ```
 
 This will convert all models into the Inference Engine IR format. Models that
-were originally in that format are ignored. Models in PyTorch's format will be
+were originally in that format are ignored. Models in PyTorch and Caffe2 formats will be
 converted in ONNX format first.
+
+The `--all` option can be replaced with other filter options to convert only
+a subset of models. See the "Shared options" section.
 
 The current directory must be the root of a download tree created by the model
 downloader. To specify a different download tree path, use the `-d`/`--download_dir`
@@ -217,9 +243,6 @@ into a different directory tree, use the `-o`/`--output_dir` option:
 ./converter.py --all --output_dir my/output/directory
 ```
 >Note: models in intermediate format are placed to this directory too.
-
-The `--all` option can be replaced with other filter options to convert only
-a subset of models. See the "Shared options" section.
 
 By default, the script will produce models in every precision that is supported
 for conversion. To only produce models in a specific precision, use the `--precisions`
@@ -240,11 +263,11 @@ script. You can override this heuristic with the `--mo` option:
 ```
 
 You can add extra Model Optimizer arguments to the ones specified in the model
-configuration by using the `--add-mo-arg` option. The option can be repeated
+configuration by using the `--add_mo_arg` option. The option can be repeated
 to add multiple arguments:
 
 ```sh
-./converter.py --name=caffenet --add-mo-arg=--reverse_input_channels --add-mo-arg=--silent
+./converter.py --name=caffenet --add_mo_arg=--reverse_input_channels --add_mo_arg=--silent
 ```
 
 By default, the script will run Model Optimizer using the same Python executable
@@ -267,14 +290,108 @@ executed commands, or "auto", in which case the number of CPUs in the system is 
 By default, all commands are run sequentially.
 
 The script can print the conversion commands without actually running them.
-To do this, use the `--dry-run` option:
+To do this, use the `--dry_run` option:
 
 ```sh
-./converter.py --all --dry-run
+./converter.py --all --dry_run
 ```
 
 See the "Shared options" section for information on other options accepted by
 the script.
+
+Model quantizer usage
+---------------------
+
+Before you run the model quantizer, you must prepare a directory with
+the datasets required for the quantization process. This directory will be
+referred to as `<DATASET_DIR>` below. See the "Dataset directory layout"
+section for information on the expected contents of that directory.
+
+The basic usage is to run the script like this:
+
+```sh
+./quantizer.py --all --dataset_dir <DATASET_DIR>
+```
+
+This will quantize all models for which quantization is supported. Other models
+are ignored.
+
+The `--all` option can be replaced with other filter options to quantize only
+a subset of models. See the "Shared options" section.
+
+The current directory must be the root of a tree of model files create by the model
+converter. To specify a different model tree path, use the `--model_dir` option:
+
+```sh
+./quantizer.py --all --dataset_dir <DATASET_DIR> --model_dir my/model/directory
+```
+
+By default, the quantized models are placed into the same model tree. To place them
+into a different directory tree, use the `-o`/`--output_dir` option:
+
+```sh
+./quantizer.py --all --dataset_dir <DATASET_DIR> --output_dir my/output/directory
+```
+
+By default, the script will produce models in every precision that is supported
+as a quantization output. To only produce models in a specific precision, use
+the `--precisions` option:
+
+```sh
+./quantizer.py --all --dataset_dir <DATASET_DIR> --precisions=FP16-INT8
+```
+
+The script will attempt to locate Post-Training Optimization Toolkit using
+the environment variables set by the OpenVINO&trade; toolkit's `setupvars.sh`/`setupvars.bat`
+script. You can override this heuristic with the `--pot` option:
+
+```sh
+./quantizer.py --all --dataset_dir <DATASET_DIR> --pot my/openvino/path/post_training_optimization_toolkit/main.py
+```
+
+By default, the script will run Post-Training Optimization Toolkit using the same
+Python executable that was used to run the script itself. To use a different
+Python executable, use the `-p`/`--python` option:
+
+```sh
+./quantizer.py --all --dataset_dir <DATASET_DIR> --python my/python
+```
+
+It's possible to specify a target device for Post-Training Optimization Toolkit
+to optimize for, by using the `--target_device` option:
+
+```sh
+./quantizer.py --all --dataset_dir <DATASET_DIR> --target_device VPU
+```
+
+The supported values are those accepted by the "target_device" option in
+Post-Training Optimization Toolkit's config files. If this option is unspecified,
+Post-Training Optimization Toolkit's default is used.
+
+The script can print the quantization commands without actually running them.
+To do this, use the `--dry_run` option:
+
+```sh
+./quantizer.py --all --dataset_dir <DATASET_DIR> --dry_run
+```
+
+With this option specified, the configuration file for Post-Training Optimization
+Toolkit will still be created, so that you can inspect it.
+
+See the "Shared options" section for information on other options accepted by
+the script.
+
+### Dataset directory layout
+
+Currently, all models for which quantization is supported require the
+[ILSVRC 2012](http://image-net.org/challenges/LSVRC/2012/index) validation
+dataset. This means that `<DATASET_DIR>` must contain the following entries:
+
+* A subdirectory named `ILSVRC2012_img_val` containing the ILSVRC 2012
+  validation images. To obtain these images, follow the
+  [instructions at the ILSVRC 2012 website](http://image-net.org/challenges/LSVRC/2012/signup).
+
+* `val.txt` from <http://dl.caffe.berkeleyvision.org/caffe_ilsvrc12.tar.gz>.
 
 Model information dumper usage
 ------------------------------
@@ -298,15 +415,25 @@ describing a single model. Each such object has the following keys:
 * `description`: text describing the model. Paragraphs are separated by line feed characters.
 
 * `framework`: a string identifying the framework whose format the model is downloaded in.
-  Current possible values are `dldt` (Inference Engine IR), `caffe`, `mxnet`, `pytorch` and `tf` (TensorFlow).
-  Additional possible values might be added in the future.
+  Current possible values are `dldt` (Inference Engine IR), `caffe`, `caffe2`, `mxnet`, `onnx`,
+  `pytorch` and `tf` (TensorFlow). Additional possible values might be added in the future.
 
 * `license_url`: an URL for the license that the model is distributed under.
 
 * `precisions`: the list of precisions that the model has IR files for. For models downloaded
   in a format other than the Inference Engine IR format, these are the precisions that the model
-  converter can produce IR files in. Current possible values are `FP16`, `FP32`, `INT1`, `INT8`;
-  more might be added in the future.
+  converter can produce IR files in. Current possible values are:
+
+  * `FP16`
+  * `FP16-INT1`
+  * `FP16-INT8`
+  * `FP32`
+  * `FP32-INT1`
+  * `FP32-INT8`
+  * `INT1`
+  * `INT8`
+
+  Additional possible values might be added in the future.
 
 * `subdirectory`: the subdirectory of the output tree into which the downloaded or converted files
   will be placed by the downloader or the converter, respectively.
@@ -318,10 +445,13 @@ describing a single model. Each such object has the following keys:
   * `classification`
   * `detection`
   * `face_recognition`
+  * `feature_extraction`
   * `head_pose_estimation`
   * `human_pose_estimation`
+  * `image_inpainting`
   * `image_processing`
   * `instance_segmentation`
+  * `monocular_depth_estimation`
   * `object_attributes`
   * `optical_character_recognition`
   * `semantic_segmentation`
@@ -331,7 +461,7 @@ describing a single model. Each such object has the following keys:
 Shared options
 --------------
 
-The are certain options that both tools accept.
+The are certain options that all tools accept.
 
 `-h`/`--help` can be used to print a help message:
 
@@ -395,18 +525,6 @@ face-detection-retail-0005
 
 Either `--print_all` or one of the filter options must be specified.
 
-Deprecated options
-------------------
-
-In earlier releases, the tools used a single configuration file instead of
-per-model configuration files. For compatibility, loading such a file is still
-supported. However, this feature is deprecated and will be removed in a future release.
-
-To load a configuration file in the old format, use the `-c`/`--config` option:
-
-```sh
-./TOOL.py --all --config my-config.yml
-```
 __________
 
 OpenVINO is a trademark of Intel Corporation or its subsidiaries in the U.S.

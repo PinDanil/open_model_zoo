@@ -2,7 +2,7 @@
 
 ## Use Case and High-Level Description
 
-[An Attention-Based Approach for Single Image Super Resolution](https://arxiv.org/pdf/1807.06779.pdf) but with reduced number of
+[An Attention-Based Approach for Single Image Super Resolution](https://arxiv.org/abs/1807.06779) but with reduced number of
 channels and changes in network achitecture. It enhances the resolution of the input image by a factor of 3.
 
 ## Example
@@ -26,7 +26,7 @@ Super resolution:
 | PSNR                            | 30.97 dB                                  |
 | GFlops                          | 16.062                                    |
 | MParams                         | 0.030                                     |
-| Source framework                | Pytorch*                                  |
+| Source framework                | PyTorch*                                  |
 
 For reference, PSNR for bicubic upsampling on test dataset is 28.48 dB.
 

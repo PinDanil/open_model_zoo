@@ -2,7 +2,7 @@
 
 ## Use Case and High-Level Description
 
-MobileNetV1 FPN is used for object detection. For details, see the [paper](https://arxiv.org/pdf/1807.03284.pdf).
+MobileNetV1 FPN is used for object detection. For details, see the [paper](https://arxiv.org/abs/1807.03284).
 
 ## Example
 
@@ -71,4 +71,6 @@ where:
 
 ## Legal Information
 
-[https://raw.githubusercontent.com/tensorflow/models/master/LICENSE]()
+The original model is distributed under the
+[Apache License, Version 2.0](https://raw.githubusercontent.com/tensorflow/models/master/LICENSE).
+A copy of the license is provided in [APACHE-2.0-TensorFlow.txt](../licenses/APACHE-2.0-TensorFlow.txt).

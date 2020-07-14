@@ -13,26 +13,32 @@
 # limitations under the License.
 
 description: >-
-  Text detector based on PixelLink <https://arxiv.org/pdf/1801.01315.pdf> architecture
-  with MobileNetV2, depth_multiplier=1.4 <(https://arxiv.org/pdf/1801.04381.pdf>
-  as a backbone for indoor/outdoor scenes.
+  Detects oriented text.
 task_type: detection
 files:
   - name: FP32/text-detection-0004.xml
-    size: 71958
-    sha256: 216e8c1124ef2bfe42c59db24c31402843f121d57a183b8c8e3c4e0dddb992ba
-    source: https://download.01.org/opencv/2019/open_model_zoo/R3/20190905_163000_models_bin/text-detection-0004/FP32/text-detection-0004.xml
+    size: 185489
+    sha256: a2c6746e78d73b07673e815d4ebabee52e0f6f2c12007cf45cc386198a49084c
+    source: https://download.01.org/opencv/2020/openvinotoolkit/2020.3/open_model_zoo/models_bin/1/text-detection-0004/FP32/text-detection-0004.xml
   - name: FP32/text-detection-0004.bin
-    size: 17312120
-    sha256: f6b58bf15c43cc017bd5f979b46b3159969968e47d3827de866d76d537931e1a
-    source: https://download.01.org/opencv/2019/open_model_zoo/R3/20190905_163000_models_bin/text-detection-0004/FP32/text-detection-0004.bin
+    size: 17312168
+    sha256: 6da328c7675c2d1568cbb50b2c1643c8ba6194461b01b3461216c77e1258c7d5
+    source: https://download.01.org/opencv/2020/openvinotoolkit/2020.3/open_model_zoo/models_bin/1/text-detection-0004/FP32/text-detection-0004.bin
   - name: FP16/text-detection-0004.xml
-    size: 71863
-    sha256: 049402345031d086583621e59f3ed5b913823589158c35f1115fb1cbb6bfdbcd
-    source: https://download.01.org/opencv/2019/open_model_zoo/R3/20190905_163000_models_bin/text-detection-0004/FP16/text-detection-0004.xml
+    size: 185358
+    sha256: c2e56f8a05650083e5ea12236026fcfe7617bb9b9d8eff14055e7f1d202fecda
+    source: https://download.01.org/opencv/2020/openvinotoolkit/2020.3/open_model_zoo/models_bin/1/text-detection-0004/FP16/text-detection-0004.xml
   - name: FP16/text-detection-0004.bin
-    size: 8655952
-    sha256: 25b12925d0695af246ae68fbdf2ca1b61ac5b1f6b4b368386c2d82c880c93b70
-    source: https://download.01.org/opencv/2019/open_model_zoo/R3/20190905_163000_models_bin/text-detection-0004/FP16/text-detection-0004.bin
+    size: 8656000
+    sha256: 54f0a45a2b0903c59ebb4a68ceadac3037ac137bec7677dae1a5089dd164b40c
+    source: https://download.01.org/opencv/2020/openvinotoolkit/2020.3/open_model_zoo/models_bin/1/text-detection-0004/FP16/text-detection-0004.bin
+  - name: FP16-INT8/text-detection-0004.xml
+    size: 517635
+    sha256: bf7dae294faff97e2bbd52676fdcd295202986b95d1e57391578aedd077cb141
+    source: https://download.01.org/opencv/2020/openvinotoolkit/2020.3/open_model_zoo/models_bin/1/text-detection-0004/FP16-INT8/text-detection-0004.xml
+  - name: FP16-INT8/text-detection-0004.bin
+    size: 4475588
+    sha256: 9120a086f48b2478eebf0d1c1a10824efb6f335985cb3effe9780a755f9a3840
+    source: https://download.01.org/opencv/2020/openvinotoolkit/2020.3/open_model_zoo/models_bin/1/text-detection-0004/FP16-INT8/text-detection-0004.bin
 framework: dldt
 license: https://raw.githubusercontent.com/opencv/open_model_zoo/master/LICENSE

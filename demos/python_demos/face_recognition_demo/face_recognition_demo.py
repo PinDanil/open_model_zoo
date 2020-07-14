@@ -24,7 +24,6 @@ from argparse import ArgumentParser
 import cv2
 import numpy as np
 
-from openvino.inference_engine import IENetwork
 from ie_module import InferenceContext
 from landmarks_detector import LandmarksDetector
 from face_detector import FaceDetector
@@ -32,6 +31,7 @@ from faces_database import FacesDatabase
 from face_identifier import FaceIdentifier
 
 DEVICE_KINDS = ['CPU', 'GPU', 'FPGA', 'MYRIAD', 'HETERO', 'HDDL']
+MATCH_ALGO = ['HUNGARIAN', 'MIN_DIST']
 
 
 def build_argparser():
@@ -55,6 +55,8 @@ def build_argparser():
                          help="(optional) Crop the input stream to this height " \
                          "(default: no crop). Both -cw and -ch parameters " \
                          "should be specified to use crop.")
+    general.add_argument('--match_algo', default='HUNGARIAN', choices=MATCH_ALGO,
+                         help="(optional)algorithm for face matching(default: %(default)s)")
 
     gallery = parser.add_argument_group('Faces database')
     gallery.add_argument('-fg', metavar="PATH", required=True,
@@ -70,7 +72,15 @@ def build_argparser():
                         help="Path to the Facial Landmarks Regression model XML file")
     models.add_argument('-m_reid', metavar="PATH", default="", required=True,
                         help="Path to the Face Reidentification model XML file")
-
+    models.add_argument('-fd_iw', '--fd_input_width', default=0, type=int,
+                         help="(optional) specify the input width of detection model " \
+                         "(default: use default input width of model). Both -fd_iw and -fd_ih parameters " \
+                         "should be specified for reshape.")
+    models.add_argument('-fd_ih', '--fd_input_height', default=0, type=int,
+                         help="(optional) specify the input height of detection model " \
+                         "(default: use default input height of model). Both -fd_iw and -fd_ih parameters " \
+                         "should be specified for reshape.")
+    
     infer = parser.add_argument_group('Inference options')
     infer.add_argument('-d_fd', default='CPU', choices=DEVICE_KINDS,
                        help="(optional) Target device for the " \
@@ -113,24 +123,29 @@ class FrameProcessor:
 
     def __init__(self, args):
         used_devices = set([args.d_fd, args.d_lm, args.d_reid])
-        self.context = InferenceContext()
+        self.context = InferenceContext(used_devices, args.cpu_lib, args.gpu_lib, args.perf_stats)
         context = self.context
-        context.load_plugins(used_devices, args.cpu_lib, args.gpu_lib)
-        for d in used_devices:
-            context.get_plugin(d).set_config({
-                "PERF_COUNT": "YES" if args.perf_stats else "NO"})
 
         log.info("Loading models")
         face_detector_net = self.load_model(args.m_fd)
+        
+        assert (args.fd_input_height and args.fd_input_width) or \
+               (args.fd_input_height==0 and args.fd_input_width==0), \
+            "Both -fd_iw and -fd_ih parameters should be specified for reshape"
+        
+        if args.fd_input_height and args.fd_input_width :
+            face_detector_net.reshape({"data": [1, 3, args.fd_input_height,args.fd_input_width]})
         landmarks_net = self.load_model(args.m_lm)
         face_reid_net = self.load_model(args.m_reid)
 
         self.face_detector = FaceDetector(face_detector_net,
                                           confidence_threshold=args.t_fd,
                                           roi_scale_factor=args.exp_r_fd)
+
         self.landmarks_detector = LandmarksDetector(landmarks_net)
         self.face_identifier = FaceIdentifier(face_reid_net,
-                                              match_threshold=args.t_id)
+                                              match_threshold=args.t_id,
+                                              match_algo = args.match_algo)
 
         self.face_detector.deploy(args.d_fd, context)
         self.landmarks_detector.deploy(args.d_lm, context,
@@ -151,14 +166,13 @@ class FrameProcessor:
 
     def load_model(self, model_path):
         model_path = osp.abspath(model_path)
-        model_description_path = model_path
         model_weights_path = osp.splitext(model_path)[0] + ".bin"
-        log.info("Loading the model from '%s'" % (model_description_path))
-        assert osp.isfile(model_description_path), \
-            "Model description is not found at '%s'" % (model_description_path)
+        log.info("Loading the model from '%s'" % (model_path))
+        assert osp.isfile(model_path), \
+            "Model description is not found at '%s'" % (model_path)
         assert osp.isfile(model_weights_path), \
             "Model weights are not found at '%s'" % (model_weights_path)
-        model = IENetwork(model_description_path, model_weights_path)
+        model = self.context.ie_core.read_network(model_path, model_weights_path)
         log.info("Model is loaded")
         return model
 
@@ -226,7 +240,7 @@ class Visualizer:
         self.print_perf_stats = args.perf_stats
 
         self.frame_time = 0
-        self.frame_start_time = 0
+        self.frame_start_time = time.perf_counter()
         self.fps = 0
         self.frame_num = 0
         self.frame_count = -1
@@ -238,8 +252,8 @@ class Visualizer:
         self.frame_timeout = 0 if args.timelapse else 1
 
     def update_fps(self):
-        now = time.time()
-        self.frame_time = now - self.frame_start_time
+        now = time.perf_counter()
+        self.frame_time = max(now - self.frame_start_time, sys.float_info.epsilon)
         self.fps = 1.0 / self.frame_time
         self.frame_start_time = now
 

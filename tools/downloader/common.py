@@ -16,6 +16,7 @@ import collections
 import contextlib
 import fnmatch
 import json
+import platform
 import re
 import shlex
 import shutil
@@ -29,21 +30,40 @@ import yaml
 DOWNLOAD_TIMEOUT = 5 * 60
 
 # make sure to update the documentation if you modify these
-KNOWN_FRAMEWORKS = {'caffe', 'dldt', 'mxnet', 'pytorch', 'tf'}
-KNOWN_PRECISIONS = {'FP16', 'FP32', 'INT1', 'INT8'}
+KNOWN_FRAMEWORKS = {
+    'caffe': None,
+    'caffe2': 'caffe2_to_onnx.py',
+    'dldt': None,
+    'mxnet': None,
+    'onnx': None,
+    'pytorch': 'pytorch_to_onnx.py',
+    'tf': None,
+}
+KNOWN_PRECISIONS = {
+    'FP16', 'FP16-INT1', 'FP16-INT8',
+    'FP32', 'FP32-INT1', 'FP32-INT8',
+    'INT1', 'INT8',
+}
 KNOWN_TASK_TYPES = {
     'action_recognition',
     'classification',
+    'colorization',
     'detection',
     'face_recognition',
+    'feature_extraction',
     'head_pose_estimation',
     'human_pose_estimation',
+    'image_inpainting',
     'image_processing',
     'instance_segmentation',
+    'monocular_depth_estimation',
     'object_attributes',
     'optical_character_recognition',
     'semantic_segmentation',
 }
+
+KNOWN_QUANTIZED_PRECISIONS = {p + '-INT8': p for p in ['FP16', 'FP32']}
+assert KNOWN_QUANTIZED_PRECISIONS.keys() <= KNOWN_PRECISIONS
 
 RE_MODEL_NAME = re.compile(r'[0-9a-zA-Z._-]+')
 RE_SHA256SUM = re.compile(r'[0-9a-fA-F]{64}')
@@ -291,19 +311,21 @@ class PostprocUnpackArchive(Postproc):
 Postproc.types['unpack_archive'] = PostprocUnpackArchive
 
 class Model:
-    def __init__(self, name, subdirectory, files, postprocessing, mo_args, framework,
-            description, license_url, precisions, task_type, pytorch_to_onnx_args):
+    def __init__(self, name, subdirectory, files, postprocessing, mo_args, quantizable, framework,
+                 description, license_url, precisions, task_type, conversion_to_onnx_args):
         self.name = name
         self.subdirectory = subdirectory
         self.files = files
         self.postprocessing = postprocessing
         self.mo_args = mo_args
+        self.quantizable = quantizable
         self.framework = framework
         self.description = description
         self.license_url = license_url
         self.precisions = precisions
         self.task_type = task_type
-        self.pytorch_to_onnx_args = pytorch_to_onnx_args
+        self.conversion_to_onnx_args = conversion_to_onnx_args
+        self.converter_to_onnx = KNOWN_FRAMEWORKS[framework]
 
     @classmethod
     def deserialize(cls, model, name, subdirectory):
@@ -328,12 +350,19 @@ class Model:
                 with deserialization_context('"postprocessing" #{}'.format(i)):
                     postprocessing.append(Postproc.deserialize(postproc))
 
-            pytorch_to_onnx_args = None
-            if model.get('pytorch_to_onnx', None):
-                pytorch_to_onnx_args = [validate_string('"pytorch_to_onnx" #{}'.format(i), arg)
-                                        for i, arg in enumerate(model['pytorch_to_onnx'])]
+            framework = validate_string_enum('"framework"', model['framework'], KNOWN_FRAMEWORKS.keys())
 
-            framework = validate_string_enum('"framework"', model['framework'], KNOWN_FRAMEWORKS)
+            conversion_to_onnx_args = model.get('conversion_to_onnx_args', None)
+            if KNOWN_FRAMEWORKS[framework]:
+                if not conversion_to_onnx_args:
+                    raise DeserializationError('"conversion_to_onnx_args" is absent. '
+                                               'Framework "{}" is supported only by conversion to ONNX.'
+                                               .format(framework))
+                conversion_to_onnx_args = [validate_string('"conversion_to_onnx_args" #{}'.format(i), arg)
+                                           for i, arg in enumerate(model['conversion_to_onnx_args'])]
+            else:
+                if conversion_to_onnx_args:
+                    raise DeserializationError('Conversion to ONNX not supported for "{}" framework'.format(framework))
 
             if 'model_optimizer_args' in model:
                 mo_args = [validate_string('"model_optimizer_args" #{}'.format(i), arg)
@@ -365,58 +394,43 @@ class Model:
 
                 precisions = set(files_per_precision.keys())
 
+            quantizable = model.get('quantizable', False)
+            if not isinstance(quantizable, bool):
+                raise DeserializationError('"quantizable": expected a boolean, got {!r}'.format(quantizable))
+
             description = validate_string('"description"', model['description'])
 
             license_url = validate_string('"license"', model['license'])
 
             task_type = validate_string_enum('"task_type"', model['task_type'], KNOWN_TASK_TYPES)
 
-            return cls(name, subdirectory, files, postprocessing, mo_args, framework,
-                description, license_url, precisions, task_type, pytorch_to_onnx_args)
+            return cls(name, subdirectory, files, postprocessing, mo_args, quantizable, framework,
+                description, license_url, precisions, task_type, conversion_to_onnx_args)
 
 def load_models(args):
     models = []
     model_names = set()
 
-    def add_model(model):
-        models.append(model)
+    model_root = (Path(__file__).resolve().parent / '../../models').resolve()
 
-        if models[-1].name in model_names:
-            raise DeserializationError(
-                'Duplicate model name "{}"'.format(models[-1].name))
-        model_names.add(models[-1].name)
+    for config_path in sorted(model_root.glob('**/model.yml')):
+        subdirectory = config_path.parent.relative_to(model_root)
 
-    if args.config is None: # per-model configs
-        model_root = (Path(__file__).resolve().parent / '../../models').resolve()
+        with config_path.open('rb') as config_file, \
+                deserialization_context('In config "{}"'.format(config_path)):
 
-        for config_path in sorted(model_root.glob('**/model.yml')):
-            subdirectory = config_path.parent.relative_to(model_root)
+            model = yaml.safe_load(config_file)
 
-            with config_path.open('rb') as config_file, \
-                    deserialization_context('In config "{}"'.format(config_path)):
+            for bad_key in ['name', 'subdirectory']:
+                if bad_key in model:
+                    raise DeserializationError('Unsupported key "{}"'.format(bad_key))
 
-                model = yaml.safe_load(config_file)
+            models.append(Model.deserialize(model, subdirectory.name, subdirectory))
 
-                for bad_key in ['name', 'subdirectory']:
-                    if bad_key in model:
-                        raise DeserializationError('Unsupported key "{}"'.format(bad_key))
-
-                add_model(Model.deserialize(model, subdirectory.name, subdirectory))
-
-    else: # monolithic config
-        print('########## Warning: the --config option is deprecated and will be removed in a future release',
-            file=sys.stderr)
-        with args.config.open('rb') as config_file, \
-                deserialization_context('In config "{}"'.format(args.config)):
-            for i, model in enumerate(yaml.safe_load(config_file)['topologies']):
-                with deserialization_context('In model #{}'.format(i)):
-                    name = validate_string('"name"', model['name'])
-                    if not name: raise DeserializationError('"name": must not be empty')
-
-                with deserialization_context('In model "{}"'.format(name)):
-                    subdirectory = validate_relative_path('"output"', model['output'])
-
-                add_model(Model.deserialize(model, name, subdirectory))
+            if models[-1].name in model_names:
+                raise DeserializationError(
+                    'Duplicate model name "{}"'.format(models[-1].name))
+            model_names.add(models[-1].name)
 
     return models
 
@@ -477,3 +491,17 @@ def load_models_from_args(parser, args):
                 models[model.name] = model
 
         return list(models.values())
+
+def quote_arg_windows(arg):
+    if not arg: return '""'
+    if not re.search(r'\s|"', arg): return arg
+    # On Windows, only backslashes that precede a quote or the end of the argument must be escaped.
+    return '"' + re.sub(r'(\\+)$', r'\1\1', re.sub(r'(\\*)"', r'\1\1\\"', arg)) + '"'
+
+if platform.system() == 'Windows':
+    quote_arg = quote_arg_windows
+else:
+    quote_arg = shlex.quote
+
+def command_string(args):
+    return ' '.join(map(quote_arg, args))

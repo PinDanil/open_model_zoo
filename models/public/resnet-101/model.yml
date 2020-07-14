@@ -13,7 +13,7 @@
 # limitations under the License.
 
 description: >-
-  ResNet-101 <https://arxiv.org/pdf/1512.03385.pdf>
+  ResNet-101 <https://arxiv.org/abs/1512.03385>
 task_type: classification
 files:
   - name: resnet-101.prototxt
@@ -32,4 +32,5 @@ model_optimizer_args:
   - --input_model=$dl_dir/resnet-101.caffemodel
   - --input_proto=$dl_dir/resnet-101.prototxt
 framework: caffe
+quantizable: yes
 license: https://raw.githubusercontent.com/KaimingHe/deep-residual-networks/master/LICENSE

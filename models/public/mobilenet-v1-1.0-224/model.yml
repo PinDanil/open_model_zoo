@@ -13,11 +13,11 @@
 # limitations under the License.
 
 description: >-
-  `mobilenet-v1-1.0-224` is one of MobileNet V1 architecture <https://arxiv.org/abs/1704.04861>
-  with the width multiplier 1.0 and resolution 224. It is small, low-latency,
-  low-power models parameterized to meet the resource constraints of a variety
-  of use cases. They can be built upon for classification, detection, embeddings
-  and segmentation similar to how other popular large scale models are used.
+  "mobilenet-v1-1.0-224" is one of MobileNet V1 architecture <https://arxiv.org/abs/1704.04861>
+  with the width multiplier 1.0 and resolution 224. It is small, low-latency, low-power
+  models parameterized to meet the resource constraints of a variety of use cases.
+  They can be built upon for classification, detection, embeddings and segmentation
+  similar to how other popular large scale models are used.
 task_type: classification
 files:
   - name: mobilenet-v1-1.0-224.prototxt
@@ -37,4 +37,5 @@ model_optimizer_args:
   - --input_model=$dl_dir/mobilenet-v1-1.0-224.caffemodel
   - --input_proto=$dl_dir/mobilenet-v1-1.0-224.prototxt
 framework: caffe
+quantizable: yes
 license: https://raw.githubusercontent.com/shicai/MobileNet-Caffe/26a8b8c0afb6114a07c1c9e4f550e4e0dd8cced1/LICENSE

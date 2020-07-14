@@ -19,7 +19,7 @@ Each input modality has its own encoder which are later fused together to produc
 
 ## Accuracy
 
-See [https://github.com/lachinov/brats2018-graphlabunn]()
+See [the original repository](https://github.com/lachinov/brats2018-graphlabunn).
 
 
 ## Performance
@@ -82,4 +82,6 @@ With the following channels: `background`, `necrotic core`, `edema` and `enhanci
 
 ## Legal Information
 
-[https://github.com/lachinov/brats2018-graphlabunn/blob/master/LICENSE]()
+The original model is distributed under the
+[Apache License, Version 2.0](https://github.com/lachinov/brats2018-graphlabunn/blob/master/LICENSE).
+A copy of the license is provided in [APACHE-2.0.txt](../licenses/APACHE-2.0.txt).

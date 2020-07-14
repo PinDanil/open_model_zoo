@@ -25,7 +25,7 @@ from argparse import ArgumentParser, SUPPRESS
 
 import cv2
 import numpy as np
-from openvino.inference_engine import IENetwork, IECore
+from openvino.inference_engine import IECore
 
 from instance_segmentation_demo.tracker import StaticIOUTracker
 from instance_segmentation_demo.visualizer import Visualizer
@@ -79,6 +79,9 @@ def build_argparser():
     args.add_argument('-r', '--raw_output_message',
                       help='Optional. Output inference results raw values.',
                       action='store_true')
+    args.add_argument("--no_show",
+                      help="Optional. Don't show output",
+                      action='store_true')
     return parser
 
 
@@ -118,17 +121,14 @@ def main():
     log.basicConfig(format='[ %(levelname)s ] %(message)s', level=log.INFO, stream=sys.stdout)
     args = build_argparser().parse_args()
 
-    model_xml = args.model
-    model_bin = os.path.splitext(model_xml)[0] + '.bin'
-
     # Plugin initialization for specified device and load extensions library if specified.
     log.info('Creating Inference Engine...')
     ie = IECore()
     if args.cpu_extension and 'CPU' in args.device:
         ie.add_extension(args.cpu_extension, 'CPU')
     # Read IR
-    log.info('Loading network files:\n\t{}\n\t{}'.format(model_xml, model_bin))
-    net = IENetwork(model=model_xml, weights=model_bin)
+    log.info('Loading network')
+    net = ie.read_network(args.model, os.path.splitext(args.model)[0] + '.bin')
 
     if 'CPU' in args.device:
         supported_layers = ie.query_network(net, 'CPU')
@@ -152,7 +152,6 @@ def main():
 
     log.info('Loading IR to the plugin...')
     exec_net = ie.load_network(network=net, device_name=args.device, num_requests=2)
-    del net
 
     try:
         input_source = int(args.input_source)
@@ -259,20 +258,20 @@ def main():
                 print('{:<70} {:<15} {:<15} {:<15} {:<10}'.format(layer, stats['layer_type'], stats['exec_type'],
                                                                   stats['status'], stats['real_time']))
 
-        # Show resulting image.
-        cv2.imshow('Results', frame)
+        if not args.no_show:
+            # Show resulting image.
+            cv2.imshow('Results', frame)
         render_end = time.time()
         render_time = render_end - render_start
 
-        key = cv2.waitKey(args.delay)
-        esc_code = 27
-        if key == esc_code:
-            break
+        if not args.no_show:
+            key = cv2.waitKey(args.delay)
+            esc_code = 27
+            if key == esc_code:
+                break
 
     cv2.destroyAllWindows()
     cap.release()
-    del exec_net
-    del ie
 
 
 if __name__ == '__main__':
