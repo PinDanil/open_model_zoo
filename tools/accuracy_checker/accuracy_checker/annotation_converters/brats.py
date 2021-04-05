@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018-2020 Intel Corporation
+Copyright (c) 2018-2021 Intel Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -64,12 +64,11 @@ class BratsConverter(DirectoryBasedAnnotationConverter):
             mask = mask_dir / mask_file_name
             if not mask.exists():
                 if not check_content:
-                    warnings.warn('Annotation mask for {} does not exists. File will be ignored.'.format(file_name))
+                    warnings.warn('Annotation mask for {} does not exist. File will be ignored.'.format(file_name))
                 else:
                     content_check_errors.append(
-                        '{}: '.format(str(file_in_dir)) +
-                        'annotation mask does not exists, please remove this file or add gt mask '
-                        '({}).'.format(str(mask))
+                        '{}: annotation mask does not exist, please remove this file or add gt mask ({})'.format(
+                            file_in_dir, mask)
                     )
                 continue
             annotation = BrainTumorSegmentationAnnotation(

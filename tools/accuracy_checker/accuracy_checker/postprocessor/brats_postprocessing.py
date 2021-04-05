@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018-2020 Intel Corporation
+Copyright (c) 2018-2021 Intel Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ class SegmentationPredictionResample(Postprocessor):
         self.make_argmax = self.config.get('make_argmax')
 
     def process_image(self, annotations, predictions):
-        raise RuntimeError("Since `process_image_with_metadata` is overriden, this method MUST NOT be called")
+        raise RuntimeError("Since `process_image_with_metadata` is overridden, this method MUST NOT be called")
 
     def process_image_with_metadata(self, annotation, prediction, image_metadata=None):
         if not len(annotation) == len(prediction) == 1:
@@ -153,7 +153,7 @@ class RemoveBratsPredictionPadding(Postprocessor):
         self.make_argmax = self.get_value_from_config('make_argmax')
 
     def process_image(self, annotation, prediction):
-        raise RuntimeError("Since `process_image_with_metadata` is overriden, this method MUST NOT be called")
+        raise RuntimeError("Since `process_image_with_metadata` is overridden, this method MUST NOT be called")
 
     def process_image_with_metadata(self, annotation, prediction, image_metadata=None):
         raw_shape = image_metadata.get('size_after_cropping')

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018-2020 Intel Corporation
+Copyright (c) 2018-2021 Intel Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -265,8 +265,9 @@ class SegmentationDIAcc(PerImageEvaluationMetric):
             raise RuntimeError("For '{}' metric prediction mask should has only 1 channel, but more found. "
                                "Specify 'make_argmax' option in adapter or postprocessor."
                                .format(self.__provider__))
+        label_order = getattr(prediction, 'label_order', [0, 1, 2, 3])
 
-        for c, p in enumerate(prediction.label_order, 1):
+        for c, p in enumerate(label_order, 1):
             annotation_data_ = (annotation_data == c)
             prediction_data_ = (prediction_data == p)
 

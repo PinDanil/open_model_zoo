@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018-2020 Intel Corporation
+Copyright (c) 2018-2021 Intel Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import warnings
 from pathlib import Path
 import cv2
 import numpy as np
-from ..config import PathField, StringField, BoolField, ConfigError, NumberField, DictField
+from ..config import PathField, StringField, BoolField, ConfigError, NumberField, DictField, BaseField
 from ..representation import SuperResolutionAnnotation, ContainerAnnotation
 from ..representation.image_processing import GTLoader
 from ..utils import check_file_existence, get_path
@@ -30,7 +30,8 @@ from .format_converter import BaseFormatConverter, ConverterReturn
 LOADERS_MAPPING = {
     'opencv': GTLoader.OPENCV,
     'pillow': GTLoader.PILLOW,
-    'dicom': GTLoader.DICOM
+    'dicom': GTLoader.DICOM,
+    'skimage': GTLoader.SKIMAGE
 }
 
 
@@ -110,7 +111,7 @@ class SRConverter(BaseFormatConverter):
                 try:
                     self.lr_dir.relative_to(self.data_dir)
                     self.upsampled_dir.relative_to(self.data_dir)
-                except:
+                except ValueError:
                     raise ConfigError('data_dir parameter should be provided for conversion as common part of paths '
                                       'lr_dir and upsampled_dir, if 2 streams used')
             self.relative_dir = self.data_dir or os.path.commonpath([self.lr_dir, self.upsampled_dir])
@@ -228,6 +229,11 @@ class SRConverter(BaseFormatConverter):
 class SRMultiFrameConverter(BaseFormatConverter):
     __provider__ = 'multi_frame_super_resolution'
     annotation_types = (SuperResolutionAnnotation, )
+    predefined_ref_frame = {
+        'first': lambda x: 0,
+        'middle': lambda x: int(x) // 2,
+        'last': lambda x: -1
+    }
 
     @classmethod
     def parameters(cls):
@@ -249,7 +255,8 @@ class SRMultiFrameConverter(BaseFormatConverter):
                 optional=True, choices=LOADERS_MAPPING.keys(), default='pillow',
                 description="Which library will be used for ground truth image reading. "
                             "Supported: {}".format(', '.join(LOADERS_MAPPING.keys()))
-            )
+            ),
+            'reference_frame': BaseField(optional=True, default='middle', description='id of frame used as reference')
         })
         return params
 
@@ -260,6 +267,7 @@ class SRMultiFrameConverter(BaseFormatConverter):
         self.annotation_loader = LOADERS_MAPPING.get(self.get_value_from_config('annotation_loader'))
         self.num_frames = self.get_value_from_config('number_input_frames')
         self.max_frame_id = self.get_value_from_config('max_frame_id')
+        self.reference_frame = self.parse_ref_frame(self.get_value_from_config('reference_frame'), self.num_frames)
 
     def convert(self, check_content=False, progress_callback=None, progress_interval=100, **kwargs):
         def get_index(image_name, suffix):
@@ -292,7 +300,7 @@ class SRMultiFrameConverter(BaseFormatConverter):
                 break
             input_ids = list(range(self.num_frames))
             input_frames = [sorted_frame_names[idx + shift] for shift in input_ids]
-            hr_name = self.hr_suffix.join(input_frames[self.num_frames // 2].split(self.lr_suffix))
+            hr_name = self.hr_suffix.join(input_frames[self.reference_frame].split(self.lr_suffix))
             if check_content and not check_file_existence(self.data_dir / hr_name):
                 content_errors.append('{}: does not exist'.format(self.data_dir / hr_name))
             annotations.append(SuperResolutionAnnotation(
@@ -302,6 +310,18 @@ class SRMultiFrameConverter(BaseFormatConverter):
                 progress_callback(idx * 100 / num_iterations)
 
         return ConverterReturn(annotations, None, content_errors)
+
+    def parse_ref_frame(self, config_value, num_frames):
+        try:
+            ref_frame = int(config_value)
+        except ValueError:
+            ref_func = self.predefined_ref_frame.get(config_value)
+            if ref_func is None:
+                raise ConfigError('Unsupported value for reference_frame: {}'.format(config_value))
+            ref_frame = ref_func(num_frames)
+        if ref_frame > num_frames:
+            raise ConfigError('Unexpected value for reference_frame id: {}'.format(ref_frame))
+        return ref_frame
 
 
 class MultiTargetSuperResolutionConverter(BaseFormatConverter):
@@ -361,6 +381,7 @@ class SRDirectoryBased(BaseFormatConverter):
             'hr_dir': PathField(optional=True, description='directory with high resolution images', is_directory=True),
             'upsampled_dir': PathField(optional=True, description='directory with upsampled images', is_directory=True),
             'two_streams': BoolField(optional=True, default=False),
+            'hr_prefixed': BoolField(optional=True, default=False),
             'annotation_loader': StringField(
                 optional=True, choices=LOADERS_MAPPING.keys(), default='pillow',
                 description="Which library will be used for ground truth image reading. "
@@ -383,6 +404,7 @@ class SRDirectoryBased(BaseFormatConverter):
         self.hr_dir = self.get_value_from_config('hr_dir')
         self.upsample_dir = self.get_value_from_config('upsampled_dir')
         self.two_streams = self.get_value_from_config('two_streams')
+        self.hr_prefixed = self.get_value_from_config('hr_prefixed')
         error_msg_not_provided = '{} or {} should be provided'
         error_msg_the_same_dir = '{} and {} should contain different directories'
         if self.lr_dir is None:
@@ -399,12 +421,12 @@ class SRDirectoryBased(BaseFormatConverter):
         if self.images_dir:
             try:
                 self.lr_dir.relative_to(self.images_dir)
-            except:
+            except ValueError:
                 raise ConfigError('lr_dir should be relative to images_dir')
             if self.two_streams:
                 try:
                     self.upsample_dir.relative_to(self.images_dir)
-                except:
+                except ValueError:
                     raise ConfigError('upsample_dir should be relative to images_dir')
         else:
             self.images_dir = (
@@ -419,8 +441,9 @@ class SRDirectoryBased(BaseFormatConverter):
         for lr_id, lr_file in enumerate(file_list_lr):
             lr_file_name = lr_file.name
             hr_file = (
-                self.hr_dir / lr_file_name if not self.relaxed_names
-                else self.find_file_by_id(self.hr_dir, lr_file_name)
+                self.hr_dir / lr_file_name if not self.relaxed_names and not self.hr_prefixed
+                else self.find_file_by_id(self.hr_dir, lr_file_name) if self.relaxed_names
+                else self.find_file_with_prefix(self.hr_dir, lr_file_name)
             )
             if hr_file is None:
                 continue
@@ -460,7 +483,14 @@ class SRDirectoryBased(BaseFormatConverter):
             return numbers
 
         idx = get_index(file_name)
-        found_files = list(search_dir.glob('*{}*'.format(idx)))
+        found_files = []
+        for i in idx:
+            found_files.extend(search_dir.glob('*{}*'.format(i)))
         if not found_files:
             return None
         return found_files[0]
+
+    @staticmethod
+    def find_file_with_prefix(search_dir, file_name):
+        found_files = list(search_dir.glob('*{}*'.format(file_name)))
+        return found_files[0] if found_files else None

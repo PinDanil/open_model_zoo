@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018-2020 Intel Corporation
+Copyright (c) 2018-2021 Intel Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import numpy as np
 from ..adapters import Adapter
 from ..config import NumberField, ConfigError
 from ..representation import DetectionPrediction
+
 
 class PersonVehicleDetectionAdapter(Adapter):
     __provider__ = 'person_vehicle_detection'
@@ -61,7 +62,7 @@ class PersonVehicleDetectionAdapter(Adapter):
         else:
             for batch_index in range(len(identifiers)):
                 bbox_pred = raw[batch_index]['bbox_pred']
-                proposals = raw[batch_index]['proposals']
+                proposals = self.get_raw_proposals(raw[batch_index])
                 cls_score = raw[batch_index]['cls_score']
                 props_map = self.output_to_proposals(bbox_pred, proposals, cls_score, frame_meta[batch_index])
                 pred_items = self.get_proposals(props_map)

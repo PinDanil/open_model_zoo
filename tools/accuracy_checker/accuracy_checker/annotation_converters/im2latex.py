@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018-2020 Intel Corporation
+Copyright (c) 2018-2021 Intel Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ def read_vocab(vocab_path):
         vocab_path (str): path to vocab file
 
     Raises:
-        ValueError: If wrong extenson of the file
+        ValueError: If wrong extension of the file
 
     Returns:
         Vocab: Vocab object with sign2id and id2sign dictinaries
@@ -45,8 +45,6 @@ def read_vocab(vocab_path):
     else:
         raise ValueError("Wrong extension of the vocab file")
     return vocab_dict["id2sign"]
-
-
 
 
 class Im2latexDatasetConverter(DirectoryBasedAnnotationConverter):
@@ -77,6 +75,7 @@ class Im2latexDatasetConverter(DirectoryBasedAnnotationConverter):
             }
         )
         return configuration_parameters
+
     def configure(self):
         super().configure()
         self.images_dir = self.get_value_from_config('images_dir')
