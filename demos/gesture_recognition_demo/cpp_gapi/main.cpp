@@ -66,31 +66,35 @@ GAPI_OCV_KERNEL(OCVBoundingBoxExtract, BoundingBoxExtract) {
                     const cv::Mat &in_frame,
                     std::vector<cv::Rect> &bboxes) {
         bboxes.clear();
+/*
         const auto &in_ssd_dims = in_ssd_result.size;
-        CV_Assert(in_ssd_dims.dims() == 4u);
+        std::cout << "DIMS: " << in_ssd_dims.dims() << std::endl;
+        CV_Assert(in_ssd_dims.dims() == 2u);
 
         const int MAX_PROPOSALS = in_ssd_dims[2];
         const int OBJECT_SIZE   = in_ssd_dims[3];
+        std::cout << "MPROP: " << MAX_PROPOSALS << std::endl;
+        std::cout << "MPROP: " << OBJECT_SIZE << std::endl;
         CV_Assert(OBJECT_SIZE == 7);
 
         const cv::Size upscale = in_frame.size();
         const cv::Rect surface({0,0}, upscale);
+*/
+
+        const int OBJECT_SIZE   = 5;
 
         const float *data = in_ssd_result.ptr<float>();
-        for (int i = 0; i < MAX_PROPOSALS; i++) {
+        for (int i = 0; i < 100; i++) {
             const float x_min = data[i * OBJECT_SIZE + 0];
             const float y_min = data[i * OBJECT_SIZE + 1];
             const float x_max = data[i * OBJECT_SIZE + 2];
             const float y_max = data[i * OBJECT_SIZE + 3];
             const float conf  = data[i * OBJECT_SIZE + 4];
 
-            if (conf < 0.5) {
-                continue;
-            }
-
+            std::cout<< x_min << ' '<< x_max << ' '<< y_min << ' ' << y_max << ' ' <<conf<<std::endl;
             bboxes.push_back(cv::Rect(x_min, y_min, 
-                                         x_max - x_min,
-                                         y_max - y_min));
+                                      x_max - x_min,
+                                      y_max - y_min));
         }
     }
 };
@@ -109,10 +113,11 @@ int main(int argc, char *argv[]) {
         // Load network and set input
         cv::GComputation pipeline([=]() {
                 cv::GMat in;
-                cv::GMat frame = cv::gapi::copy(in);
-                cv::GMat detections = cv::gapi::infer<PersoneDetection>(frame);
-                auto bboxes = BoundingBoxExtract::on(detections, frame);
-                return cv::GComputation(cv::GIn(in), cv::GOut(bboxes));
+                cv::GMat detections = cv::gapi::infer<PersoneDetection>(in);
+                auto bboxes = BoundingBoxExtract::on(detections, in);
+                
+                cv::GMat out_frame = cv::gapi::copy(in);
+                return cv::GComputation(cv::GIn(in), cv::GOut(bboxes, out_frame));
         });
 
         auto person_detection = cv::gapi::ie::Params<PersoneDetection> {
@@ -126,7 +131,28 @@ int main(int argc, char *argv[]) {
 
         cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
 
+        cv::VideoWriter videoWriter;
+        std::vector<cv::Rect> bboxes;
+        cv::Mat frame;
+        auto out_vector = cv::gout(bboxes, frame);
+
         setInput(stream, FLAGS_i);
+        stream.start();
+        while (stream.pull(std::move(out_vector))){
+                // Got bboxes and frame
+                std::cout<< bboxes.size()<< std::endl;
+                for (auto box : bboxes) {
+                    std::cout << box.width<<' '<< box.height<< std::endl;
+                    cv::rectangle(frame, box, cv::Scalar(0, 255, 0));
+                }
+
+                if (!videoWriter.isOpened()) {
+                    videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 25, cv::Size(frame.size()));
+                }
+                if (!FLAGS_o.empty()) {
+                    videoWriter.write(frame);
+                }
+        }
         // ------------------------------ Parsing and validating of input arguments --------------------------
     }
     catch (const std::exception& error) {
