@@ -12,6 +12,13 @@
 #include "gesture_recognition_gapi.hpp"
 #include <utils/slog.hpp>
 
+#include <opencv2/gapi.hpp>
+#include <opencv2/gapi/core.hpp>
+#include <opencv2/gapi/infer.hpp>
+#include <opencv2/gapi/infer/ie.hpp>
+#include <opencv2/gapi/cpu/gcpukernel.hpp>
+#include <opencv2/gapi/streaming/cap.hpp>
+
 
 bool ParseAndCheckCommandLine(int argc, char *argv[]) {
     // ---------------------------Parsing and validating input arguments--------------------------------------
@@ -36,15 +43,91 @@ bool ParseAndCheckCommandLine(int argc, char *argv[]) {
     return true;
 }
 
+void setInput(cv::GStreamingCompiled stream, const std::string& input ) {
+    try {
+        // If stoi() throws exception input should be a path not a camera id
+        stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(std::stoi(input)));
+    } catch (std::invalid_argument&) {
+        slog::info << "Input source is treated as a file path" << slog::endl;
+        stream.setSource(cv::gapi::wip::make_src<cv::gapi::wip::GCaptureSource>(input));
+    }
+}
+
+G_API_NET(PersoneDetection, <cv::GMat(cv::GMat)>, "perspne_detection");
+
+G_API_OP(BoundingBoxExtract, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.bb_extract") {
+    static cv::GArrayDesc outMeta(const cv::GMatDesc &in, const cv::GMatDesc &) {
+        return cv::empty_array_desc();
+    }
+};
+
+GAPI_OCV_KERNEL(OCVBoundingBoxExtract, BoundingBoxExtract) {
+    static void run(const cv::Mat &in_ssd_result,
+                    const cv::Mat &in_frame,
+                    std::vector<cv::Rect> &bboxes) {
+        bboxes.clear();
+        const auto &in_ssd_dims = in_ssd_result.size;
+        CV_Assert(in_ssd_dims.dims() == 4u);
+
+        const int MAX_PROPOSALS = in_ssd_dims[2];
+        const int OBJECT_SIZE   = in_ssd_dims[3];
+        CV_Assert(OBJECT_SIZE == 7);
+
+        const cv::Size upscale = in_frame.size();
+        const cv::Rect surface({0,0}, upscale);
+
+        const float *data = in_ssd_result.ptr<float>();
+        for (int i = 0; i < MAX_PROPOSALS; i++) {
+            const float x_min = data[i * OBJECT_SIZE + 0];
+            const float y_min = data[i * OBJECT_SIZE + 1];
+            const float x_max = data[i * OBJECT_SIZE + 2];
+            const float y_max = data[i * OBJECT_SIZE + 3];
+            const float conf  = data[i * OBJECT_SIZE + 4];
+
+            if (conf < 0.5) {
+                continue;
+            }
+
+            bboxes.push_back(cv::Rect(x_min, y_min, 
+                                         x_max - x_min,
+                                         y_max - y_min));
+        }
+    }
+};
+
+static std::string fileNameNoExt(const std::string &filepath) {
+    auto pos = filepath.rfind('.');
+    if (pos == std::string::npos) return filepath;
+    return filepath.substr(0, pos);
+}
 
 int main(int argc, char *argv[]) {
     try {
-//         std::cout << "InferenceEngine: " << printable(*GetInferenceEngineVersion()) << std::endl;
-
-        // ------------------------------ Parsing and validating of input arguments --------------------------
         if (!ParseAndCheckCommandLine(argc, argv)) {
             return 0;
         }
+        // Load network and set input
+        cv::GComputation pipeline([=]() {
+                cv::GMat in;
+                cv::GMat frame = cv::gapi::copy(in);
+                cv::GMat detections = cv::gapi::infer<PersoneDetection>(frame);
+                auto bboxes = BoundingBoxExtract::on(detections, frame);
+                return cv::GComputation(cv::GIn(in), cv::GOut(bboxes));
+        });
+
+        auto person_detection = cv::gapi::ie::Params<PersoneDetection> {
+            FLAGS_m_d,                         // path to model
+            fileNameNoExt(FLAGS_m_d) + ".bin", // path to weights
+            "CPU"                              // device to use
+        };
+
+        auto kernels = cv::gapi::kernels<OCVBoundingBoxExtract>();
+        auto networks = cv::gapi::networks(person_detection);
+
+        cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
+
+        setInput(stream, FLAGS_i);
+        // ------------------------------ Parsing and validating of input arguments --------------------------
     }
     catch (const std::exception& error) {
         slog::err << error.what() << slog::endl;
