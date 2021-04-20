@@ -55,6 +55,32 @@ void setInput(cv::GStreamingCompiled stream, const std::string& input ) {
 
 G_API_NET(PersoneDetection, <cv::GMat(cv::GMat)>, "perspne_detection");
 
+G_API_OP(transpose, <cv::GMat(cv::GMat)>, "custom.transpose") {
+    static cv::GMatDesc outMeta(const cv::GMatDesc &in) {
+        return in.withSize(cv::Size(in.size.height, in.size.width));
+    }
+};
+
+GAPI_OCV_KERNEL(OCVTranspose, transpose) {
+    static void run(const cv::Mat &in,
+                    cv::Mat &out) {
+        cv::transpose(in, out);
+    }
+};
+
+G_API_OP(reshape, <cv::GMat(cv::GMat, int, int)>, "custom.reshape") {
+    static cv::GMatDesc outMeta(const cv::GMatDesc& in, const int d, const int c) {
+        return cv::GMatDesc(d, c, in.size);
+    }
+};
+
+GAPI_OCV_KERNEL(OCVReshape, reshape) {
+    static void run(const cv::Mat &in, int d, int c,
+                    cv::Mat &out) {
+        out = in.reshape(c, d);
+    }
+};
+
 G_API_OP(BoundingBoxExtract, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.bb_extract") {
     static cv::GArrayDesc outMeta(const cv::GMatDesc &in, const cv::GMatDesc &) {
         return cv::empty_array_desc();
@@ -111,8 +137,14 @@ int main(int argc, char *argv[]) {
             return 0;
         }
         // Load network and set input
+
+        cv::Size input_sz(320, 320); // HARDCODED size of input image
         cv::GComputation pipeline([=]() {
                 cv::GMat in;
+                in = cv::gapi::resize(in, input_sz);
+                in = transpose::on(in);
+                in = reshape::on(in, 1, 3); // HARDCOED dims and chanals
+
                 cv::GMat detections = cv::gapi::infer<PersoneDetection>(in);
                 auto bboxes = BoundingBoxExtract::on(detections, in);
                 
