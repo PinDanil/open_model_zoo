@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
                 auto bboxes = BoundingBoxExtract::on(detections, in);
                 
                 cv::GMat out_frame = cv::gapi::copy(in);
-                return cv::GComputation(cv::GIn(in), cv::GOut(bboxes, out_frame));
+                return cv::GComputation(cv::GIn(in), cv::GOut(detections, out_frame));
         });
 
         auto person_detection = cv::gapi::ie::Params<PersoneDetection> {
@@ -132,18 +132,31 @@ int main(int argc, char *argv[]) {
         cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
 
         cv::VideoWriter videoWriter;
-        std::vector<cv::Rect> bboxes;
-        cv::Mat frame;
-        auto out_vector = cv::gout(bboxes, frame);
+//        std::vector<cv::Rect> bboxes;
+        cv::Mat frame, detections;
+        auto out_vector = cv::gout(detections, frame);
 
         setInput(stream, FLAGS_i);
         stream.start();
         while (stream.pull(std::move(out_vector))){
                 // Got bboxes and frame
-                std::cout<< bboxes.size()<< std::endl;
-                for (auto box : bboxes) {
-                    std::cout << box.width<<' '<< box.height<< std::endl;
-                    cv::rectangle(frame, box, cv::Scalar(0, 255, 0));
+
+                auto in_ssd_dims = detections.size;
+                std::cout << in_ssd_dims << std::endl;
+                std::cout << in_ssd_dims[0] << std::endl;
+                std::cout << in_ssd_dims[1] << std::endl;
+                std::cout << in_ssd_dims[2] << std::endl;
+                std::cout << in_ssd_dims[3] << std::endl;
+
+                const float *data = detections.ptr<float>();
+                for (int i =0; i < 100; i++) {
+                    const float x_min = data[i * 5 + 0];
+                    const float y_min = data[i * 5 + 1];
+                    const float x_max = data[i * 5 + 2];
+                    const float y_max = data[i * 5 + 3];
+                    const float conf  = data[i * 5 + 4];
+                    if (conf > 0.05)
+                        std::cout << i << ' '<< conf << std::endl;
                 }
 
                 if (!videoWriter.isOpened()) {
