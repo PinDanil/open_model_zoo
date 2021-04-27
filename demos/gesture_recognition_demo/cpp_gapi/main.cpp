@@ -141,12 +141,8 @@ int main(int argc, char *argv[]) {
         cv::Size input_sz(320, 320); // HARDCODED size of input image
         cv::GComputation pipeline([=]() {
                 cv::GMat in;
-                in = cv::gapi::resize(in, input_sz);
-                in = transpose::on(in);
-                in = reshape::on(in, 1, 3); // HARDCOED dims and chanals
 
                 cv::GMat detections = cv::gapi::infer<PersoneDetection>(in);
-                auto bboxes = BoundingBoxExtract::on(detections, in);
                 
                 cv::GMat out_frame = cv::gapi::copy(in);
                 return cv::GComputation(cv::GIn(in), cv::GOut(detections, out_frame));
@@ -164,7 +160,6 @@ int main(int argc, char *argv[]) {
         cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
 
         cv::VideoWriter videoWriter;
-//        std::vector<cv::Rect> bboxes;
         cv::Mat frame, detections;
         auto out_vector = cv::gout(detections, frame);
 
@@ -173,12 +168,7 @@ int main(int argc, char *argv[]) {
         while (stream.pull(std::move(out_vector))){
                 // Got bboxes and frame
 
-                auto in_ssd_dims = detections.size;
-                std::cout << in_ssd_dims << std::endl;
-                std::cout << in_ssd_dims[0] << std::endl;
-                std::cout << in_ssd_dims[1] << std::endl;
-                std::cout << in_ssd_dims[2] << std::endl;
-                std::cout << in_ssd_dims[3] << std::endl;
+                std::cout<< detections << std::endl;
 
                 const float *data = detections.ptr<float>();
                 for (int i =0; i < 100; i++) {
@@ -187,16 +177,15 @@ int main(int argc, char *argv[]) {
                     const float x_max = data[i * 5 + 2];
                     const float y_max = data[i * 5 + 3];
                     const float conf  = data[i * 5 + 4];
-                    if (conf > 0.05)
-                        std::cout << i << ' '<< conf << std::endl;
                 }
-
+/*
                 if (!videoWriter.isOpened()) {
                     videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 25, cv::Size(frame.size()));
                 }
                 if (!FLAGS_o.empty()) {
                     videoWriter.write(frame);
                 }
+*/
         }
         // ------------------------------ Parsing and validating of input arguments --------------------------
     }
