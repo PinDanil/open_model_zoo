@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
                 cv::GMat detections = cv::gapi::infer<PersoneDetection>(in);
                 
                 cv::GMat out_frame = cv::gapi::copy(in);
-                return cv::GComputation(cv::GIn(in), cv::GOut(detections));
+                return cv::GComputation(cv::GIn(in), cv::GOut(detections, out_frame));
         });
 
         auto person_detection = cv::gapi::ie::Params<PersoneDetection> {
@@ -157,21 +157,21 @@ int main(int argc, char *argv[]) {
         auto kernels = cv::gapi::kernels<OCVBoundingBoxExtract>();
         auto networks = cv::gapi::networks(person_detection);
 
-        cv::Mat in_mat = cv::imread(FLAGS_i);
-        cv::Mat out_mat;
-
-        const float *data = out_mat.ptr<float>();
-
-        cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
-
         cv::VideoWriter videoWriter;
-        cv::Mat frame, detections;
+        cv::Mat detections, frame;
         auto out_vector = cv::gout(detections, frame);
 
+        std::vector<cv::Rect> bbDetections;
+
+        auto stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
         setInput(stream, FLAGS_i);
         stream.start();
         while (stream.pull(std::move(out_vector))){
-                // Got bboxes and frame
+                // get scaling params [320, 320] before
+                float scaling_x = frame.size().width / 320.;
+                float scaling_y = frame.size().height / 320.;
+
+                bbDetections.clear();
 
                 const float *data = detections.ptr<float>();
                 for (int i =0; i < 100; i++) {
@@ -180,9 +180,22 @@ int main(int argc, char *argv[]) {
                     const float x_max = data[i * 5 + 2];
                     const float y_max = data[i * 5 + 3];
                     const float conf  = data[i * 5 + 4];
+
+                    if (conf > 0.5){
+                        cv::Rect boundingBox(
+                            static_cast<int>(x_min * scaling_x),
+                            static_cast<int>(y_min * scaling_y),
+                            static_cast<int>((x_max - x_min) * scaling_x),
+                            static_cast<int>((y_max - y_min) * scaling_y)
+                        );
+
+                        cv::rectangle(frame, boundingBox, cv::Scalar(255 ,0 , 0));
+                    }
                 }
+
                 if (!videoWriter.isOpened()) {
-                    videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 25, cv::Size(frame.size()));
+                    // videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 25, cv::Size(frame.size()));
+                    videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
                 }
                 if (!FLAGS_o.empty()) {
                     videoWriter.write(frame);
