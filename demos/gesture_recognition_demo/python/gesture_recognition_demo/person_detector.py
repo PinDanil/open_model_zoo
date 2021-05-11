@@ -68,6 +68,16 @@ class PersonDetector(IEModel):
 
         super().async_infer(in_frame, req_id)
 
+    def infer(self, frame, req_id):
+        """Requests model inference for the specified image"""
+
+        in_frame, initial_h, initial_w, scale_h, scale_w = self._prepare_frame(frame)
+        self.last_sizes = initial_h, initial_w
+        self.last_scales = scale_h, scale_w
+
+        super().infer(in_frame)
+
+
     def wait_request(self, req_id):
         """Waits for the model output"""
 
@@ -82,6 +92,7 @@ class PersonDetector(IEModel):
         scale_h, scale_w = self.last_scales
 
         out = self._process_output(result, initial_h, initial_w, scale_h, scale_w)
+        print(out)
 
         return out
 

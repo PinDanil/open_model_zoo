@@ -215,7 +215,8 @@ class Tracker:  # pylint: disable=too-few-public-methods
     def add_frame(self, frame, max_num_detections, labels_map):
         """Adds new detections and returns active tracks"""
 
-        self._detector.async_infer(frame, self._next_req_id)
+        #self._detector.async_infer(frame, self._next_req_id)
+        self._detector.infer(frame, self._next_req_id)
         new_rois = self._detector.wait_request(self._cur_req_id)
         self._cur_req_id, self._next_req_id = self._next_req_id, self._cur_req_id
 

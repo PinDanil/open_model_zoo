@@ -127,6 +127,7 @@ def main():
     person_tracker = Tracker(person_detector, TRACKER_SCORE_THRESHOLD, TRACKER_IOU_THRESHOLD)
 
     video_stream = VideoStream(args.input, ACTION_NET_INPUT_FPS, action_recognizer.input_length)
+
     video_stream.start()
 
     visualizer = Visualizer(VISUALIZER_TRG_FPS)
@@ -153,10 +154,13 @@ def main():
     frames_processed = 0
 
     start_time = time.perf_counter()
+    fr_num = 0
     while True:
+        fr_num += 1
         frame = video_stream.get_live_frame()
         batch = video_stream.get_batch()
         if frame is None or batch is None:
+            print(fr_num)
             break
         if frames_processed == 0:
             video_writer = cv2.VideoWriter()
@@ -166,83 +170,6 @@ def main():
 
         detections, tracker_labels_map = person_tracker.add_frame(
             frame, len(OBJECT_IDS), tracker_labels_map)
-        if detections is None:
-            active_object_id = -1
-            last_caption = None
-
-        if len(detections) == 1:
-            active_object_id = 0
-
-        if active_object_id >= 0:
-            cur_det = [det for det in detections if det.id == active_object_id]
-            if len(cur_det) != 1:
-                active_object_id = -1
-                last_caption = None
-                continue
-
-            recognizer_result = action_recognizer(batch, cur_det[0].roi.reshape(-1))
-            if recognizer_result is not None:
-                action_class_id = np.argmax(recognizer_result)
-                action_class_label = \
-                    class_map[action_class_id] if class_map is not None else action_class_id
-
-                action_class_score = np.max(recognizer_result)
-                if action_class_score > args.action_threshold:
-                    last_caption = 'Last gesture: {} '.format(action_class_label)
-
-        end_time = time.perf_counter()
-        elapsed_time = end_time - start_time
-        start_time = end_time
-        presenter.drawGraphs(frame)
-        if active_object_id >= 0:
-            current_fps = 1.0 / elapsed_time
-            cv2.putText(frame, 'FPS: {:.2f}'.format(current_fps), (10, 40),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-
-        if detections is not None:
-            tracker_labels = set(det.id for det in detections)
-
-            for det in detections:
-                roi_color = (0, 255, 0) if active_object_id == det.id else (128, 128, 128)
-                border_width = 2 if active_object_id == det.id else 1
-                person_roi = det.roi[0]
-                cv2.rectangle(frame, (person_roi[0], person_roi[1]),
-                              (person_roi[2], person_roi[3]), roi_color, border_width)
-                cv2.putText(frame, str(det.id), (person_roi[0] + 10, person_roi[1] + 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, roi_color, 2)
-
-        if last_caption is not None:
-            cv2.putText(frame, last_caption, (10, frame.shape[0] - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-        frames_processed += 1
-        if video_writer.isOpened() and (args.output_limit <= 0 or frames_processed <= args.output_limit):
-            video_writer.write(frame)
-
-        if args.no_show:
-            continue
-
-        visualizer.put_queue(frame, 'Demo')
-        key = visualizer.get_key()
-
-        if key == 27:  # esc
-            break
-        elif key == ord(' '):  # space
-            active_object_id = -1
-            last_caption = None
-        elif key == 13:  # enter
-            last_caption = None
-        elif key in OBJECT_IDS:  # 0-9
-            local_bbox_id = int(chr(key))
-            if local_bbox_id in tracker_labels:
-                active_object_id = local_bbox_id
-        else:
-            presenter.handleKey(key)
-
-        if samples_library is not None:
-            if key == ord('f'):  # forward
-                samples_library.next()
-            elif key == ord('b'):  # backward
-                samples_library.prev()
 
     if samples_library is not None:
         samples_library.release()
@@ -254,5 +181,5 @@ def main():
 if __name__ == '__main__':
     # https://github.com/opencv/opencv/issues/5150#issuecomment-197413178
     # https://github.com/opencv/opencv/issues/5150#issuecomment-197540235
-    multiprocessing.set_start_method('spawn')
+    # multiprocessing.set_start_method('spawn')
     sys.exit(main() or 0)

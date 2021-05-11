@@ -19,6 +19,7 @@
 #include <opencv2/gapi/cpu/gcpukernel.hpp>
 #include <opencv2/gapi/streaming/cap.hpp>
 
+#include <opencv2/highgui.hpp>
 
 bool ParseAndCheckCommandLine(int argc, char *argv[]) {
     // ---------------------------Parsing and validating input arguments--------------------------------------
@@ -138,24 +139,28 @@ int main(int argc, char *argv[]) {
         }
         // Load network and set input
 
-        cv::Size input_sz(320, 320); // HARDCODED size of input image
         cv::GComputation pipeline([=]() {
                 cv::GMat in;
 
                 cv::GMat detections = cv::gapi::infer<PersoneDetection>(in);
                 
                 cv::GMat out_frame = cv::gapi::copy(in);
-                return cv::GComputation(cv::GIn(in), cv::GOut(detections, out_frame));
+                return cv::GComputation(cv::GIn(in), cv::GOut(detections));
         });
 
         auto person_detection = cv::gapi::ie::Params<PersoneDetection> {
             FLAGS_m_d,                         // path to model
             fileNameNoExt(FLAGS_m_d) + ".bin", // path to weights
             "CPU"                              // device to use
-        };
+        }.cfgOutputLayers({"boxes"});
 
         auto kernels = cv::gapi::kernels<OCVBoundingBoxExtract>();
         auto networks = cv::gapi::networks(person_detection);
+
+        cv::Mat in_mat = cv::imread(FLAGS_i);
+        cv::Mat out_mat;
+
+        const float *data = out_mat.ptr<float>();
 
         cv::GStreamingCompiled stream = pipeline.compileStreaming(cv::compile_args(kernels, networks));
 
@@ -168,8 +173,6 @@ int main(int argc, char *argv[]) {
         while (stream.pull(std::move(out_vector))){
                 // Got bboxes and frame
 
-                std::cout<< detections << std::endl;
-
                 const float *data = detections.ptr<float>();
                 for (int i =0; i < 100; i++) {
                     const float x_min = data[i * 5 + 0];
@@ -178,14 +181,12 @@ int main(int argc, char *argv[]) {
                     const float y_max = data[i * 5 + 3];
                     const float conf  = data[i * 5 + 4];
                 }
-/*
                 if (!videoWriter.isOpened()) {
                     videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 25, cv::Size(frame.size()));
                 }
                 if (!FLAGS_o.empty()) {
                     videoWriter.write(frame);
                 }
-*/
         }
         // ------------------------------ Parsing and validating of input arguments --------------------------
     }
@@ -198,5 +199,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     slog::info << "Execution successful" << slog::endl;
+
     return 0;
 }
