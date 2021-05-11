@@ -56,32 +56,6 @@ void setInput(cv::GStreamingCompiled stream, const std::string& input ) {
 
 G_API_NET(PersoneDetection, <cv::GMat(cv::GMat)>, "perspne_detection");
 
-G_API_OP(transpose, <cv::GMat(cv::GMat)>, "custom.transpose") {
-    static cv::GMatDesc outMeta(const cv::GMatDesc &in) {
-        return in.withSize(cv::Size(in.size.height, in.size.width));
-    }
-};
-
-GAPI_OCV_KERNEL(OCVTranspose, transpose) {
-    static void run(const cv::Mat &in,
-                    cv::Mat &out) {
-        cv::transpose(in, out);
-    }
-};
-
-G_API_OP(reshape, <cv::GMat(cv::GMat, int, int)>, "custom.reshape") {
-    static cv::GMatDesc outMeta(const cv::GMatDesc& in, const int d, const int c) {
-        return cv::GMatDesc(d, c, in.size);
-    }
-};
-
-GAPI_OCV_KERNEL(OCVReshape, reshape) {
-    static void run(const cv::Mat &in, int d, int c,
-                    cv::Mat &out) {
-        out = in.reshape(c, d);
-    }
-};
-
 G_API_OP(BoundingBoxExtract, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.bb_extract") {
     static cv::GArrayDesc outMeta(const cv::GMatDesc &in, const cv::GMatDesc &) {
         return cv::empty_array_desc();
@@ -92,36 +66,36 @@ GAPI_OCV_KERNEL(OCVBoundingBoxExtract, BoundingBoxExtract) {
     static void run(const cv::Mat &in_ssd_result,
                     const cv::Mat &in_frame,
                     std::vector<cv::Rect> &bboxes) {
+        // get scaling params [320, 320] before
+        float scaling_x = in_frame.size().width / 320.;
+        float scaling_y = in_frame.size().height / 320.;
+
         bboxes.clear();
-/*
-        const auto &in_ssd_dims = in_ssd_result.size;
-        std::cout << "DIMS: " << in_ssd_dims.dims() << std::endl;
-        CV_Assert(in_ssd_dims.dims() == 2u);
-
-        const int MAX_PROPOSALS = in_ssd_dims[2];
-        const int OBJECT_SIZE   = in_ssd_dims[3];
-        std::cout << "MPROP: " << MAX_PROPOSALS << std::endl;
-        std::cout << "MPROP: " << OBJECT_SIZE << std::endl;
-        CV_Assert(OBJECT_SIZE == 7);
-
-        const cv::Size upscale = in_frame.size();
-        const cv::Rect surface({0,0}, upscale);
-*/
-
-        const int OBJECT_SIZE   = 5;
 
         const float *data = in_ssd_result.ptr<float>();
-        for (int i = 0; i < 100; i++) {
+        for (int i =0; i < 100; i++) {
+            const int OBJECT_SIZE = 5;
+
             const float x_min = data[i * OBJECT_SIZE + 0];
             const float y_min = data[i * OBJECT_SIZE + 1];
             const float x_max = data[i * OBJECT_SIZE + 2];
             const float y_max = data[i * OBJECT_SIZE + 3];
             const float conf  = data[i * OBJECT_SIZE + 4];
 
-            std::cout<< x_min << ' '<< x_max << ' '<< y_min << ' ' << y_max << ' ' <<conf<<std::endl;
-            bboxes.push_back(cv::Rect(x_min, y_min, 
-                                      x_max - x_min,
-                                      y_max - y_min));
+            if (conf > 0.5){
+                cv::Rect boundingBox(
+                    static_cast<int>(x_min * scaling_x),
+                    static_cast<int>(y_min * scaling_y),
+                    static_cast<int>((x_max - x_min) * scaling_x),
+                    static_cast<int>((y_max - y_min) * scaling_y)
+                );
+
+                bboxes.push_back(cv::Rect(static_cast<int>(x_min * scaling_x),
+                                          static_cast<int>(y_min * scaling_y),
+                                          static_cast<int>((x_max - x_min) * scaling_x),
+                                          static_cast<int>((y_max - y_min) * scaling_y)));
+
+            }
         }
     }
 };
@@ -167,34 +141,8 @@ int main(int argc, char *argv[]) {
         setInput(stream, FLAGS_i);
         stream.start();
         while (stream.pull(std::move(out_vector))){
-                // get scaling params [320, 320] before
-                float scaling_x = frame.size().width / 320.;
-                float scaling_y = frame.size().height / 320.;
-
-                bbDetections.clear();
-
-                const float *data = detections.ptr<float>();
-                for (int i =0; i < 100; i++) {
-                    const float x_min = data[i * 5 + 0];
-                    const float y_min = data[i * 5 + 1];
-                    const float x_max = data[i * 5 + 2];
-                    const float y_max = data[i * 5 + 3];
-                    const float conf  = data[i * 5 + 4];
-
-                    if (conf > 0.5){
-                        cv::Rect boundingBox(
-                            static_cast<int>(x_min * scaling_x),
-                            static_cast<int>(y_min * scaling_y),
-                            static_cast<int>((x_max - x_min) * scaling_x),
-                            static_cast<int>((y_max - y_min) * scaling_y)
-                        );
-
-                        cv::rectangle(frame, boundingBox, cv::Scalar(255 ,0 , 0));
-                    }
-                }
 
                 if (!videoWriter.isOpened()) {
-                    // videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 25, cv::Size(frame.size()));
                     videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
                 }
                 if (!FLAGS_o.empty()) {
