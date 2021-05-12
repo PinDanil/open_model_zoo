@@ -21,6 +21,8 @@
 
 #include <opencv2/highgui.hpp>
 
+#include "utils.hpp"
+
 bool ParseAndCheckCommandLine(int argc, char *argv[]) {
     // ---------------------------Parsing and validating input arguments--------------------------------------
     gflags::ParseCommandLineNonHelpFlags(&argc, &argv, true);
@@ -141,6 +143,10 @@ int main(int argc, char *argv[]) {
         setInput(stream, FLAGS_i);
         stream.start();
         while (stream.pull(std::move(out_vector))){
+                const float TRACKER_SCORE_THRESHOLD = 0.4;
+                const float TRACKER_IOU_THRESHOLD = 0.3;
+
+
 
                 if (!videoWriter.isOpened()) {
                     videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
