@@ -68,6 +68,7 @@ const float NMS_THRESHOLD = 0.5;
 
 struct StateMap {
     std::map<size_t, cv::Rect> mp;
+    int last_id = 0;
 };
 
 GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
@@ -81,18 +82,21 @@ GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
                     cv::Rect& out_person,
                     StateMap &tracked) {
         if (tracked.mp.empty()){
-            for( int i = 0; i < new_persons.size(); ++i) {
-                tracked.mp[i] = new_persons[i];
+            for(int i = 0; i < new_persons.size(); ++i) {
+                tracked.mp[tracked.last_id] = new_persons[i];
+                tracked.last_id++;
             }
         }
-        else {
+        else if(!new_persons.empty()) {
             // Find most shapable roi
             for(auto it = tracked.mp.begin(); it != tracked.mp.end(); it++){
                     float max_shape = 0.;
                     cv::Rect actual_area;
-                    for(auto second_rect : new_persons){
+                    size_t actual_area_index;
+                    for(int i = 0; i < new_persons.size(); i++){
                         cv::Rect first_rect = it->second;
-                        
+                        cv::Rect second_rect = new_persons[i];
+
                         float inter_area = (first_rect & second_rect).area();
                         float common_area = first_rect.area() + second_rect.area() - inter_area;
                         float shape = inter_area / common_area;
@@ -100,13 +104,24 @@ GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
                         if (shape > NMS_THRESHOLD & shape > max_shape) {
                             max_shape = shape;
                             actual_area = second_rect;
+                            actual_area_index = i;
                         }
                     }
 
-                    if(max_shape == 0.) { // Didn`t find any shapable roi 
-
+                    if(max_shape > 0.) {
+                        it->second = actual_area;
+                        new_persons.erase(actual_area_index)
                     }
-                    it->second = actual_area;
+                    else { // Didn`t find any shapable roi
+                        tracked.mp.erase(it);
+                    }
+                }
+
+                if(!new_person.empty()){
+                    for(auto roi : new_persons){
+                        tracked.mp[tracked.last_id] = roi;
+                        tracked.last_id++;
+                    }
                 }
         }
     }
