@@ -9,6 +9,7 @@
 */
 
 #include <iostream>
+#include <set>
 #include "gesture_recognition_gapi.hpp"
 #include <utils/slog.hpp>
 
@@ -58,12 +59,6 @@ void setInput(cv::GStreamingCompiled stream, const std::string& input ) {
 
 G_API_NET(PersoneDetection, <cv::GMat(cv::GMat)>, "perspne_detection");
 
-G_TYPED_KERNEL(PersonTrack, <cv::GOpaque<cv::Rect>(cv::GArray<cv::Rect>)>, "custom.track") {
-    static cv::GOpaqueDesc outMeta(const cv::GArrayDesc&) {
-        return cv::empty_gopaque_desc();
-    }
-};
-
 const float NMS_THRESHOLD = 0.5;
 
 struct StateMap {
@@ -71,78 +66,83 @@ struct StateMap {
     int last_id = 0;
 };
 
+G_TYPED_KERNEL(PersonTrack, <cv::GOpaque<std::map<size_t, cv::Rect>>(cv::GOpaque<std::set<cv::Rect>>)>, "custom.track") {
+    static cv::GOpaqueDesc outMeta(const cv::GOpaqueDesc&) {
+        return cv::empty_gopaque_desc();
+    }
+};
+
 GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
- static void setup(const cv::GArrayDesc&,
-                   std::shared_ptr<StateMap> &tracked) {
+    static void setup(const cv::GOpaqueDesc&,
+                      std::shared_ptr<StateMap> &tracked) {
         StateMap persons = {};
         tracked = std::make_shared<StateMap>(persons);
     }
 
-    static void run(const std::vector<cv::Rect>& new_persons,
-                    cv::Rect& out_person,
+    static void run(const std::set<cv::Rect>& new_rois,
+                    std::map<size_t, cv::Rect>& out_persons,
                     StateMap &tracked) {
+        std::set<cv::Rect> filtered_rois = new_rois;
+
         if (tracked.mp.empty()){
-            for(int i = 0; i < new_persons.size(); ++i) {
-                tracked.mp[tracked.last_id] = new_persons[i];
+            for(auto it = filtered_rois.begin(); it != filtered_rois.end(); ++it) {
+                tracked.mp[tracked.last_id] = *it;
                 tracked.last_id++;
             }
         }
-        else if(!new_persons.empty()) {
+        else if(!filtered_rois.empty()) {
             // Find most shapable roi
             for(auto it = tracked.mp.begin(); it != tracked.mp.end(); it++){
                     float max_shape = 0.;
-                    cv::Rect actual_area;
-                    size_t actual_area_index;
-                    for(int i = 0; i < new_persons.size(); i++){
-                        cv::Rect first_rect = it->second;
-                        cv::Rect second_rect = new_persons[i];
+                    std::set<cv::Rect>::iterator actual_roi_candidate;
+                    for(auto roi_it = filtered_rois.begin(); roi_it != filtered_rois.end(); roi_it++){
+                        cv::Rect tracked_roi = it->second;
+                        cv::Rect candidate_roi = *roi_it;
 
-                        float inter_area = (first_rect & second_rect).area();
-                        float common_area = first_rect.area() + second_rect.area() - inter_area;
+                        float inter_area = (tracked_roi & candidate_roi).area();
+                        float common_area = tracked_roi.area() + candidate_roi.area() - inter_area;
                         float shape = inter_area / common_area;
                         
                         if (shape > NMS_THRESHOLD & shape > max_shape) {
                             max_shape = shape;
-                            actual_area = second_rect;
-                            actual_area_index = i;
+                            actual_roi_candidate = roi_it;
                         }
                     }
-
                     if(max_shape > 0.) {
-                        it->second = actual_area;
-                        new_persons.erase(actual_area_index)
+                        it->second = *actual_roi_candidate;
+                        filtered_rois.erase(actual_roi_candidate);
                     }
                     else { // Didn`t find any shapable roi
                         tracked.mp.erase(it);
                     }
                 }
-
-                if(!new_person.empty()){
-                    for(auto roi : new_persons){
+                if(!filtered_rois.empty()){ // There is some new persons on frame
+                    for(auto roi : filtered_rois){
                         tracked.mp[tracked.last_id] = roi;
                         tracked.last_id++;
                     }
                 }
         }
+
+        out_persons = tracked.mp;
     }
 };
 
-G_API_OP(BoundingBoxExtract, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.bb_extract") {
-    static cv::GArrayDesc outMeta(const cv::GMatDesc &in, const cv::GMatDesc &) {
-        return cv::empty_array_desc();
+G_API_OP(BoundingBoxExtract, <cv::GOpaque<std::set<cv::Rect>>(cv::GMat, cv::GMat)>, "custom.bb_extract") {
+    static cv::GOpaqueDesc outMeta(const cv::GMatDesc &in, const cv::GMatDesc &) {
+        return cv::empty_gopaque_desc();
     }
 };
 
 GAPI_OCV_KERNEL(OCVBoundingBoxExtract, BoundingBoxExtract) {
     static void run(const cv::Mat &in_ssd_result,
                     const cv::Mat &in_frame,
-                    std::vector<cv::Rect> &bboxes) {
+                    std::set<cv::Rect> &bboxes) {
         // get scaling params [320, 320] before
         float scaling_x = in_frame.size().width / 320.;
         float scaling_y = in_frame.size().height / 320.;
 
         bboxes.clear();
-
         const float *data = in_ssd_result.ptr<float>();
         for (int i =0; i < 100; i++) {
             const int OBJECT_SIZE = 5;
@@ -161,7 +161,7 @@ GAPI_OCV_KERNEL(OCVBoundingBoxExtract, BoundingBoxExtract) {
                     static_cast<int>((y_max - y_min) * scaling_y)
                 );
 
-                bboxes.push_back(cv::Rect(static_cast<int>(x_min * scaling_x),
+                bboxes.insert(cv::Rect(static_cast<int>(x_min * scaling_x),
                                           static_cast<int>(y_min * scaling_y),
                                           static_cast<int>((x_max - x_min) * scaling_x),
                                           static_cast<int>((y_max - y_min) * scaling_y)));
@@ -186,11 +186,15 @@ int main(int argc, char *argv[]) {
 
         cv::GComputation pipeline([=]() {
                 cv::GMat in;
+                cv::GMat out_frame = cv::gapi::copy(in);
 
                 cv::GMat detections = cv::gapi::infer<PersoneDetection>(in);
-                
-                cv::GMat out_frame = cv::gapi::copy(in);
-                return cv::GComputation(cv::GIn(in), cv::GOut(detections, out_frame));
+
+                cv::GOpaque<std::set<cv::Rect>> filtered = BoundingBoxExtract::on(detections, in);
+
+                cv::GOpaque<std::map<size_t, cv::Rect>> tracked = PersonTrack::on(filtered);
+
+                return cv::GComputation(cv::GIn(in), cv::GOut(tracked, out_frame));
         });
 
         auto person_detection = cv::gapi::ie::Params<PersoneDetection> {
@@ -203,7 +207,8 @@ int main(int argc, char *argv[]) {
         auto networks = cv::gapi::networks(person_detection);
 
         cv::VideoWriter videoWriter;
-        cv::Mat detections, frame;
+        cv::Mat frame;
+        std::map<size_t, cv::Rect> detections;
         auto out_vector = cv::gout(detections, frame);
 
         std::vector<cv::Rect> bbDetections;
