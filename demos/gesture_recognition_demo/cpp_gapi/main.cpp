@@ -64,6 +64,8 @@ G_TYPED_KERNEL(PersonTrack, <cv::GOpaque<cv::Rect>(cv::GArray<cv::Rect>)>, "cust
     }
 };
 
+const float NMS_THRESHOLD = 0.5;
+
 struct StateMap {
     std::map<size_t, cv::Rect> mp;
 };
@@ -77,7 +79,37 @@ GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
 
     static void run(const std::vector<cv::Rect>& new_persons,
                     cv::Rect& out_person,
-                    StateMap &tracked) {}
+                    StateMap &tracked) {
+        if (tracked.mp.empty()){
+            for( int i = 0; i < new_persons.size(); ++i) {
+                tracked.mp[i] = new_persons[i];
+            }
+        }
+        else {
+            // Find most shapable roi
+            for(auto it = tracked.mp.begin(); it != tracked.mp.end(); it++){
+                    float max_shape = 0.;
+                    cv::Rect actual_area;
+                    for(auto second_rect : new_persons){
+                        cv::Rect first_rect = it->second;
+                        
+                        float inter_area = (first_rect & second_rect).area();
+                        float common_area = first_rect.area() + second_rect.area() - inter_area;
+                        float shape = inter_area / common_area;
+                        
+                        if (shape > NMS_THRESHOLD & shape > max_shape) {
+                            max_shape = shape;
+                            actual_area = second_rect;
+                        }
+                    }
+
+                    if(max_shape == 0.) { // Didn`t find any shapable roi 
+
+                    }
+                    it->second = actual_area;
+                }
+        }
+    }
 };
 
 G_API_OP(BoundingBoxExtract, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.bb_extract") {
