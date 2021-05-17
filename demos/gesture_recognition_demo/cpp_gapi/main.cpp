@@ -58,7 +58,7 @@ void setInput(cv::GStreamingCompiled stream, const std::string& input ) {
 
 G_API_NET(PersoneDetection, <cv::GMat(cv::GMat)>, "perspne_detection");
 
-G_API_OP(PersonTrack, <cv::GOpaque<cv::Rect>(cv::GArray<cv::Rect>)>, "custom.track") {
+G_TYPED_KERNEL(PersonTrack, <cv::GOpaque<cv::Rect>(cv::GArray<cv::Rect>)>, "custom.track") {
     static cv::GOpaqueDesc outMeta(const cv::GArrayDesc&) {
         return cv::empty_gopaque_desc();
     }
@@ -66,15 +66,14 @@ G_API_OP(PersonTrack, <cv::GOpaque<cv::Rect>(cv::GArray<cv::Rect>)>, "custom.tra
 
 GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, std::vector<int>) {
  static void setup(const cv::GArrayDesc&,
-                   std::shared_ptr<std::vector<int>> &old_persons,
-                   const cv::GCompileArgs &compileArgs) {
-        std::vector<int> persons = {};
-        old_persons = std::make_shared<std::vector<int>>(persons);
+                   std::shared_ptr<std::map<size_t, cv::Rect>> &tracked) {
+        std::map<size_t, cv::Rect> persons = {};
+        tracked = std::make_shared<std::map<size_t, cv::Rect>>(persons);
     }
 
-    static void run(const cv::GArray<cv::Rect>& new_persons,
+    static void run(const std::vector<cv::Rect>& new_persons,
                     cv::Rect& out_person,
-                    std::vector<int> &old_persons) {}
+                    std::map<size_t, cv::Rect> &tracked) {}
 };
 
 G_API_OP(BoundingBoxExtract, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.bb_extract") {
