@@ -64,16 +64,20 @@ G_TYPED_KERNEL(PersonTrack, <cv::GOpaque<cv::Rect>(cv::GArray<cv::Rect>)>, "cust
     }
 };
 
-GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, std::vector<int>) {
+struct StateMap {
+    std::map<size_t, cv::Rect> mp;
+};
+
+GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
  static void setup(const cv::GArrayDesc&,
-                   std::shared_ptr<std::map<size_t, cv::Rect>> &tracked) {
-        std::map<size_t, cv::Rect> persons = {};
-        tracked = std::make_shared<std::map<size_t, cv::Rect>>(persons);
+                   std::shared_ptr<StateMap> &tracked) {
+        StateMap persons = {};
+        tracked = std::make_shared<StateMap>(persons);
     }
 
     static void run(const std::vector<cv::Rect>& new_persons,
                     cv::Rect& out_person,
-                    std::map<size_t, cv::Rect> &tracked) {}
+                    StateMap &tracked) {}
 };
 
 G_API_OP(BoundingBoxExtract, <cv::GArray<cv::Rect>(cv::GMat, cv::GMat)>, "custom.bb_extract") {
