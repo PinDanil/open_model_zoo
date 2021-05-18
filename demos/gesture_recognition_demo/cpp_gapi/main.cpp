@@ -59,7 +59,8 @@ void setInput(cv::GStreamingCompiled stream, const std::string& input ) {
 
 G_API_NET(PersoneDetection, <cv::GMat(cv::GMat)>, "perspne_detection");
 
-const float NMS_THRESHOLD = 0.5;
+const float TRACKER_SCORE_THRESHOLD = 0.4;
+const float TRACKER_IOU_THRESHOLD = 0.3;
 
 struct StateMap {
     std::map<size_t, cv::Rect> mp;
@@ -105,7 +106,7 @@ GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
                         float common_area = tracked_roi.area() + candidate_roi.area() - inter_area;
                         float shape = inter_area / common_area;
                         
-                        if (shape > NMS_THRESHOLD & shape > max_shape) {
+                        if (shape > TRACKER_IOU_THRESHOLD & shape > max_shape) {
                             max_shape = shape;
                             actual_roi_candidate = roi_it;
                         }
@@ -155,7 +156,7 @@ GAPI_OCV_KERNEL(OCVBoundingBoxExtract, BoundingBoxExtract) {
             const float y_max = data[i * OBJECT_SIZE + 3];
             const float conf  = data[i * OBJECT_SIZE + 4];
 
-            if (conf > 0.5){
+            if (conf > TRACKER_SCORE_THRESHOLD){
                 cv::Rect boundingBox(
                     static_cast<int>(x_min * scaling_x),
                     static_cast<int>(y_min * scaling_y),
@@ -219,10 +220,17 @@ int main(int argc, char *argv[]) {
         setInput(stream, FLAGS_i);
         stream.start();
         while (stream.pull(std::move(out_vector))){
-                const float TRACKER_SCORE_THRESHOLD = 0.4;
-                const float TRACKER_IOU_THRESHOLD = 0.3;
+                std::cout<< "Size of map : "<< detections.size()<<std::endl;
+                for(auto person_pair : detections){
+                    int id = person_pair.first;
+                    cv::Rect bb = person_pair.second;
 
-
+                    cv::putText(frame, std::to_string(id),
+                                cv::Point(bb.x, bb.y), 
+                                cv::FONT_HERSHEY_SIMPLEX,
+                                1, cv::Scalar(0, 255, 0));
+                    cv::rectangle(frame, bb, cv::Scalar(0, 255, 0));
+                }
 
                 if (!videoWriter.isOpened()) {
                     videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
