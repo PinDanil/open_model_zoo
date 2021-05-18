@@ -9,7 +9,7 @@
 */
 
 #include <iostream>
-#include <set>
+#include <unordered_set>
 #include "gesture_recognition_gapi.hpp"
 #include <utils/slog.hpp>
 
@@ -66,7 +66,9 @@ struct StateMap {
     int last_id = 0;
 };
 
-G_TYPED_KERNEL(PersonTrack, <cv::GOpaque<std::map<size_t, cv::Rect>>(cv::GOpaque<std::set<cv::Rect>>)>, "custom.track") {
+using RectSet = std::unordered_set<cv::Rect, rectHash, rectEqual>;
+
+G_TYPED_KERNEL(PersonTrack, <cv::GOpaque<std::map<size_t, cv::Rect>>(cv::GOpaque<RectSet>)>, "custom.track") {
     static cv::GOpaqueDesc outMeta(const cv::GOpaqueDesc&) {
         return cv::empty_gopaque_desc();
     }
@@ -79,10 +81,10 @@ GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
         tracked = std::make_shared<StateMap>(persons);
     }
 
-    static void run(const std::set<cv::Rect>& new_rois,
+    static void run(const RectSet& new_rois,
                     std::map<size_t, cv::Rect>& out_persons,
                     StateMap &tracked) {
-        std::set<cv::Rect> filtered_rois = new_rois;
+        RectSet filtered_rois = new_rois;
 
         if (tracked.mp.empty()){
             for(auto it = filtered_rois.begin(); it != filtered_rois.end(); ++it) {
@@ -94,7 +96,7 @@ GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
             // Find most shapable roi
             for(auto it = tracked.mp.begin(); it != tracked.mp.end(); it++){
                     float max_shape = 0.;
-                    std::set<cv::Rect>::iterator actual_roi_candidate;
+                    RectSet::iterator actual_roi_candidate;
                     for(auto roi_it = filtered_rois.begin(); roi_it != filtered_rois.end(); roi_it++){
                         cv::Rect tracked_roi = it->second;
                         cv::Rect candidate_roi = *roi_it;
@@ -128,7 +130,7 @@ GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
     }
 };
 
-G_API_OP(BoundingBoxExtract, <cv::GOpaque<std::set<cv::Rect>>(cv::GMat, cv::GMat)>, "custom.bb_extract") {
+G_API_OP(BoundingBoxExtract, <cv::GOpaque<RectSet>(cv::GMat, cv::GMat)>, "custom.bb_extract") {
     static cv::GOpaqueDesc outMeta(const cv::GMatDesc &in, const cv::GMatDesc &) {
         return cv::empty_gopaque_desc();
     }
@@ -137,7 +139,7 @@ G_API_OP(BoundingBoxExtract, <cv::GOpaque<std::set<cv::Rect>>(cv::GMat, cv::GMat
 GAPI_OCV_KERNEL(OCVBoundingBoxExtract, BoundingBoxExtract) {
     static void run(const cv::Mat &in_ssd_result,
                     const cv::Mat &in_frame,
-                    std::set<cv::Rect> &bboxes) {
+                    RectSet &bboxes) {
         // get scaling params [320, 320] before
         float scaling_x = in_frame.size().width / 320.;
         float scaling_y = in_frame.size().height / 320.;
@@ -190,7 +192,7 @@ int main(int argc, char *argv[]) {
 
                 cv::GMat detections = cv::gapi::infer<PersoneDetection>(in);
 
-                cv::GOpaque<std::set<cv::Rect>> filtered = BoundingBoxExtract::on(detections, in);
+                cv::GOpaque<RectSet> filtered = BoundingBoxExtract::on(detections, in);
 
                 cv::GOpaque<std::map<size_t, cv::Rect>> tracked = PersonTrack::on(filtered);
 
