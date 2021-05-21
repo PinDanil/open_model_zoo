@@ -131,19 +131,67 @@ GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
                 else { // Didn`t find any shapable roi
                     // move that roi/detectoin to "waiting spot"
                     tracked.waiting_persons[it->first] = it->second;
-                    tracked.waiting_persons[it->first].waiting = 1; 
+                    tracked.waiting_persons[it->first].waiting = 0;
                     tracked.active_persons.erase(it++);
                 }
             }
-            if(!filtered_rois.empty()){ // There is some new persons on frame
-                for(auto roi : filtered_rois){
+            if(!filtered_rois.empty()) {
+                // There is some new persons on frame
+                for(auto roi = filtered_rois.begin(); roi != filtered_rois.end(); ){
                     // try to find it in the "waiting spot"
                     // if it didnt hame a match, create new roi
+                    
+                    // Finding person in waiting_persons
+                    float max_shape = 0.;
+                    std::map<size_t, Detection>::iterator detection_candidate;
+                    RectSet::iterator roi_candidate;
+                    for (auto it = tracked.waiting_persons.begin(); it != tracked.waiting_persons.end(); it++) {
+                        cv::Rect waiting_roi = it->second.roi;
+                        cv::Rect tracked_roi = *roi;
+
+                        float inter_area = (waiting_roi & tracked_roi).area();
+                        float common_area = waiting_roi.area() + tracked_roi.area() - inter_area;
+                        float shape = inter_area / common_area;
+                        
+                        if (shape > TRACKER_IOU_THRESHOLD & shape > max_shape) {
+                            max_shape = shape;
+                            detection_candidate = it;
+                            roi_candidate = roi;
+                        }
+                    }
+
+                    if(max_shape != 0.) {
+                        // Move roi to active person
+                        int id = detection_candidate->first;
+                        auto value = *roi;
+                        tracked.active_persons[id] = Detection(value);
+                        
+                        tracked.waiting_persons.erase(detection_candidate);
+                        filtered_rois.erase(roi++);
+                    } else {
+                        ++roi;
+                    }
+                }
+
+                for (auto roi : filtered_rois){
                     tracked.active_persons[tracked.last_id] = {roi, 0};
                     tracked.last_id++;
                 }
             }
         }
+
+        for(auto waiting_person =  tracked.waiting_persons.begin();
+                 waiting_person != tracked.waiting_persons.end(); ){
+            waiting_person->second.waiting++;
+
+            if(waiting_person->second.waiting > WAITING_PERSON_DURATION){
+                tracked.waiting_persons.erase(waiting_person++);
+            }
+            else {
+                ++waiting_person;
+            }
+        }
+        // Increse waitin values;
 
         out_persons = tracked.active_persons;
     }
