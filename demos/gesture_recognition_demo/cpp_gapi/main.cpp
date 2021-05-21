@@ -95,36 +95,38 @@ GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
         }
         else if(!filtered_rois.empty()) {
             // Find most shapable roi
-            for(auto it = tracked.mp.begin(); it != tracked.mp.end(); it++){
-                    float max_shape = 0.;
-                    RectSet::iterator actual_roi_candidate;
-                    for(auto roi_it = filtered_rois.begin(); roi_it != filtered_rois.end(); roi_it++){
-                        cv::Rect tracked_roi = it->second;
-                        cv::Rect candidate_roi = *roi_it;
+            for(auto it = tracked.mp.begin(); it != tracked.mp.end(); ){
+                float max_shape = 0.;
+                RectSet::iterator actual_roi_candidate;
+                for(auto roi_it = filtered_rois.begin(); roi_it != filtered_rois.end(); roi_it++){
+                    cv::Rect tracked_roi = it->second;
+                    cv::Rect candidate_roi = *roi_it;
 
-                        float inter_area = (tracked_roi & candidate_roi).area();
-                        float common_area = tracked_roi.area() + candidate_roi.area() - inter_area;
-                        float shape = inter_area / common_area;
-                        
-                        if (shape > TRACKER_IOU_THRESHOLD & shape > max_shape) {
-                            max_shape = shape;
-                            actual_roi_candidate = roi_it;
-                        }
-                    }
-                    if(max_shape > 0.) {
-                        it->second = *actual_roi_candidate;
-                        filtered_rois.erase(actual_roi_candidate);
-                    }
-                    else { // Didn`t find any shapable roi
-                        tracked.mp.erase(it);
+                    float inter_area = (tracked_roi & candidate_roi).area();
+                    float common_area = tracked_roi.area() + candidate_roi.area() - inter_area;
+                    float shape = inter_area / common_area;
+                    
+                    if (shape > TRACKER_IOU_THRESHOLD & shape > max_shape) {
+                        max_shape = shape;
+                        actual_roi_candidate = roi_it;
                     }
                 }
-                if(!filtered_rois.empty()){ // There is some new persons on frame
-                    for(auto roi : filtered_rois){
-                        tracked.mp[tracked.last_id] = roi;
-                        tracked.last_id++;
-                    }
+                if(max_shape != 0.) {
+                    it->second = *actual_roi_candidate;
+                    filtered_rois.erase(actual_roi_candidate);
+
+                    ++it;
                 }
+                else { // Didn`t find any shapable roi
+                    tracked.mp.erase(it++);
+                }
+            }
+            if(!filtered_rois.empty()){ // There is some new persons on frame
+                for(auto roi : filtered_rois){
+                    tracked.mp[tracked.last_id] = roi;
+                    tracked.last_id++;
+                }
+            }
         }
 
         out_persons = tracked.mp;
@@ -220,7 +222,7 @@ int main(int argc, char *argv[]) {
         setInput(stream, FLAGS_i);
         stream.start();
         while (stream.pull(std::move(out_vector))){
-                std::cout<< "Size of map : "<< detections.size()<<std::endl;
+                // std::cout<< "Size of map : "<< detections.size()<<std::endl;
                 for(auto person_pair : detections){
                     int id = person_pair.first;
                     cv::Rect bb = person_pair.second;
@@ -231,14 +233,20 @@ int main(int argc, char *argv[]) {
                                 1, cv::Scalar(0, 255, 0));
                     cv::rectangle(frame, bb, cv::Scalar(0, 255, 0));
                 }
+                // std::cout<< 1 <<std::endl;
 
                 if (!videoWriter.isOpened()) {
                     videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
                 }
+                // std::cout<< 2 <<std::endl;
+
                 if (!FLAGS_o.empty()) {
                     videoWriter.write(frame);
                 }
+                // std::cout<< 3 <<std::endl;
+
         }
+        std::cout<<"End of proramm"<< std::endl;
         // ------------------------------ Parsing and validating of input arguments --------------------------
     }
     catch (const std::exception& error) {
