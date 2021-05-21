@@ -61,15 +61,26 @@ G_API_NET(PersoneDetection, <cv::GMat(cv::GMat)>, "perspne_detection");
 
 const float TRACKER_SCORE_THRESHOLD = 0.4;
 const float TRACKER_IOU_THRESHOLD = 0.3;
+const int   WAITING_PERSON_DURATION = 8;
+
+struct Detection
+{
+    cv::Rect roi;
+    int waiting = 1;
+
+    Detection(const cv::Rect& r = cv::Rect(), const int w = 0):
+        roi(r), waiting(w){}
+};
 
 struct StateMap {
-    std::map<size_t, cv::Rect> mp;
+    std::map<size_t, Detection> active_persons;
+    std::map<size_t, Detection> waiting_persons;
     int last_id = 0;
 };
 
 using RectSet = std::unordered_set<cv::Rect, rectHash, rectEqual>;
 
-G_TYPED_KERNEL(PersonTrack, <cv::GOpaque<std::map<size_t, cv::Rect>>(cv::GOpaque<RectSet>)>, "custom.track") {
+G_TYPED_KERNEL(PersonTrack, <cv::GOpaque<std::map<size_t, Detection>>(cv::GOpaque<RectSet>)>, "custom.track") {
     static cv::GOpaqueDesc outMeta(const cv::GOpaqueDesc&) {
         return cv::empty_gopaque_desc();
     }
@@ -83,23 +94,23 @@ GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
     }
 
     static void run(const RectSet& new_rois,
-                    std::map<size_t, cv::Rect>& out_persons,
+                    std::map<size_t, Detection>& out_persons,
                     StateMap &tracked) {
         RectSet filtered_rois = new_rois;
 
-        if (tracked.mp.empty()){
+        if (tracked.active_persons.empty()){
             for(auto it = filtered_rois.begin(); it != filtered_rois.end(); ++it) {
-                tracked.mp[tracked.last_id] = *it;
+                tracked.active_persons[tracked.last_id] = Detection(*it, 0);
                 tracked.last_id++;
             }
         }
         else if(!filtered_rois.empty()) {
             // Find most shapable roi
-            for(auto it = tracked.mp.begin(); it != tracked.mp.end(); ){
+            for(auto it = tracked.active_persons.begin(); it != tracked.active_persons.end(); ){
                 float max_shape = 0.;
                 RectSet::iterator actual_roi_candidate;
                 for(auto roi_it = filtered_rois.begin(); roi_it != filtered_rois.end(); roi_it++){
-                    cv::Rect tracked_roi = it->second;
+                    cv::Rect tracked_roi = it->second.roi;
                     cv::Rect candidate_roi = *roi_it;
 
                     float inter_area = (tracked_roi & candidate_roi).area();
@@ -112,24 +123,29 @@ GAPI_OCV_KERNEL_ST(OCVPersonTrack, PersonTrack, StateMap) {
                     }
                 }
                 if(max_shape != 0.) {
-                    it->second = *actual_roi_candidate;
+                    it->second.roi = *actual_roi_candidate;
                     filtered_rois.erase(actual_roi_candidate);
 
                     ++it;
                 }
                 else { // Didn`t find any shapable roi
-                    tracked.mp.erase(it++);
+                    // move that roi/detectoin to "waiting spot"
+                    tracked.waiting_persons[it->first] = it->second;
+                    tracked.waiting_persons[it->first].waiting = 1; 
+                    tracked.active_persons.erase(it++);
                 }
             }
             if(!filtered_rois.empty()){ // There is some new persons on frame
                 for(auto roi : filtered_rois){
-                    tracked.mp[tracked.last_id] = roi;
+                    // try to find it in the "waiting spot"
+                    // if it didnt hame a match, create new roi
+                    tracked.active_persons[tracked.last_id] = {roi, 0};
                     tracked.last_id++;
                 }
             }
         }
 
-        out_persons = tracked.mp;
+        out_persons = tracked.active_persons;
     }
 };
 
@@ -197,7 +213,7 @@ int main(int argc, char *argv[]) {
 
                 cv::GOpaque<RectSet> filtered = BoundingBoxExtract::on(detections, in);
 
-                cv::GOpaque<std::map<size_t, cv::Rect>> tracked = PersonTrack::on(filtered);
+                cv::GOpaque<std::map<size_t, Detection>> tracked = PersonTrack::on(filtered);
 
                 return cv::GComputation(cv::GIn(in), cv::GOut(tracked, out_frame));
         });
@@ -213,7 +229,7 @@ int main(int argc, char *argv[]) {
 
         cv::VideoWriter videoWriter;
         cv::Mat frame;
-        std::map<size_t, cv::Rect> detections;
+        std::map<size_t, Detection> detections;
         auto out_vector = cv::gout(detections, frame);
 
         std::vector<cv::Rect> bbDetections;
@@ -225,7 +241,7 @@ int main(int argc, char *argv[]) {
                 // std::cout<< "Size of map : "<< detections.size()<<std::endl;
                 for(auto person_pair : detections){
                     int id = person_pair.first;
-                    cv::Rect bb = person_pair.second;
+                    cv::Rect bb = person_pair.second.roi;
 
                     cv::putText(frame, std::to_string(id),
                                 cv::Point(bb.x, bb.y), 
