@@ -258,9 +258,9 @@ GAPI_OCV_KERNEL_ST(OCVGestureRecogition, GestureRecogition, std::list<cv::Mat>) 
 
     static void run(const cv::Mat &in_frame,
                     const std::map<size_t, Detection> &tracked_persons,
-                    int &detected_gest,
+                    size_t &detected_gest,
                     std::list<cv::Mat> &batch) {
-            if ( batch.size() <= 16) {
+            if ( batch.size() < 16) {
                 batch.push_back(in_frame);
                 std::cout<< "Less then 16, size : "<< batch.size() << std::endl;
             }
@@ -295,7 +295,9 @@ int main(int argc, char *argv[]) {
 
                 cv::GOpaque<std::map<size_t, Detection>> tracked = PersonTrack::on(filtered);
 
-                return cv::GComputation(cv::GIn(in), cv::GOut(tracked, out_frame));
+                cv::GOpaque<size_t> gest_id = GestureRecogition::on(in, tracked);
+
+                return cv::GComputation(cv::GIn(in), cv::GOut(tracked, out_frame, gest_id));
         });
 
         auto person_detection = cv::gapi::ie::Params<PersoneDetection> {
@@ -304,13 +306,14 @@ int main(int argc, char *argv[]) {
             "CPU"                              // device to use
         }.cfgOutputLayers({"boxes"});
 
-        auto kernels = cv::gapi::kernels<OCVBoundingBoxExtract, OCVPersonTrack>();
+        auto kernels = cv::gapi::kernels<OCVBoundingBoxExtract, OCVPersonTrack, OCVGestureRecogition>();
         auto networks = cv::gapi::networks(person_detection);
 
         cv::VideoWriter videoWriter;
         cv::Mat frame;
         std::map<size_t, Detection> detections;
-        auto out_vector = cv::gout(detections, frame);
+        size_t id;
+        auto out_vector = cv::gout(detections, frame, id);
 
         std::vector<cv::Rect> bbDetections;
 
