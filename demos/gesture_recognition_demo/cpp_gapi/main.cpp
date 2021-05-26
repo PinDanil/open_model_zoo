@@ -22,6 +22,8 @@
 
 #include <opencv2/highgui.hpp>
 
+#include <list>
+
 #include "utils.hpp"
 
 bool ParseAndCheckCommandLine(int argc, char *argv[]) {
@@ -237,6 +239,36 @@ GAPI_OCV_KERNEL(OCVBoundingBoxExtract, BoundingBoxExtract) {
 
             }
         }
+    }
+};
+
+G_TYPED_KERNEL(GestureRecogition, <cv::GOpaque<size_t>(cv::GMat, cv::GOpaque<std::map<size_t, Detection>>/*SOme more inputs??*/)>,
+                        "custom.gesture_recoggnition") {
+    static cv::GOpaqueDesc outMeta(const cv::GMatDesc&, const cv::GOpaqueDesc&) {
+        return cv::empty_gopaque_desc();
+    }
+};
+
+GAPI_OCV_KERNEL_ST(OCVGestureRecogition, GestureRecogition, std::list<cv::Mat>) {
+    static void setup(const cv::GMatDesc&, const cv::GOpaqueDesc&,
+                      std::shared_ptr<std::list<cv::Mat>> &batch) {
+        std::list<cv::Mat> frames = {};
+        batch = std::make_shared<std::list<cv::Mat>>(frames);
+    }
+
+    static void run(const cv::Mat &in_frame,
+                    const std::map<size_t, Detection> &tracked_persons,
+                    int &detected_gest,
+                    std::list<cv::Mat> &batch) {
+            if ( batch.size() <= 16) {
+                batch.push_back(in_frame);
+                std::cout<< "Less then 16, size : "<< batch.size() << std::endl;
+            }
+            else {
+                batch.pop_front();
+                batch.push_back(in_frame);
+                std::cout<< "More then 16, size : "<< batch.size() << std::endl;
+            }
     }
 };
 
