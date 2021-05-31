@@ -242,7 +242,49 @@ GAPI_OCV_KERNEL(OCVBoundingBoxExtract, BoundingBoxExtract) {
     }
 };
 
-G_TYPED_KERNEL(GestureRecogition, <cv::GOpaque<size_t>(cv::GMat, cv::GOpaque<std::map<size_t, Detection>>/*SOme more inputs??*/)>,
+G_TYPED_KERNEL(FramesStorage, <cv::GArray<cv::GMat>(const cv::GMat, const cv::GOpaque<std::map<size_t, Detection>>/*SOme more inputs??*/)>,
+                        "custom.frames_storage") {
+    static cv::GArrayDesc outMeta(const cv::GMatDesc&, const cv::GOpaqueDesc&) {
+        return cv::empty_array_desc();
+    }
+};
+
+GAPI_OCV_KERNEL_ST(OCVFramesStorage, FramesStorage, std::list<cv::Mat>) {
+    static void setup(const cv::GMatDesc&, const cv::GOpaqueDesc&,
+                      std::shared_ptr<std::list<cv::Mat>> &stored_frames) {
+        std::list<cv::Mat> frames = {};
+        stored_frames = std::make_shared<std::list<cv::Mat>>(frames);
+    }
+
+    static void run(const cv::Mat &in_frame,
+                    const std::map<size_t, Detection> &tracked_persons,
+                    std::vector<cv::Mat> &batch, 
+                    std::list<cv::Mat> &stored_frames) {
+            stored_frames.clear();
+            if ( stored_frames.size() < 16) {
+                stored_frames.push_back(in_frame);
+            }
+            else {
+                stored_frames.pop_front();
+                stored_frames.push_back(in_frame);
+
+                batch.clear();
+                for(auto frame = stored_frames.begin(); frame != stored_frames.end(); ++frame) {
+                    // Take roi from tracked_persons
+                    cv::Rect roi = tracked_persons.begin()->second.roi;
+                    cv::Mat crop = (*frame)(roi);
+                    cv::Mat resized;
+
+                    cv::Size sz_dst(224, 224); // Take sizes from net description
+                    cv::resize(crop, resized, sz_dst);
+
+                    batch.push_back(resized);
+                }
+            }
+    }
+};
+/*
+G_TYPED_KERNEL(GestureRecogition, <cv::GOpaque<size_t>(cv::GMat, cv::GOpaque<std::map<size_t, Detection>>)>,
                         "custom.gesture_recoggnition") {
     static cv::GOpaqueDesc outMeta(const cv::GMatDesc&, const cv::GOpaqueDesc&) {
         return cv::empty_gopaque_desc();
@@ -255,23 +297,8 @@ GAPI_OCV_KERNEL_ST(OCVGestureRecogition, GestureRecogition, std::list<cv::Mat>) 
         std::list<cv::Mat> frames = {};
         batch = std::make_shared<std::list<cv::Mat>>(frames);
     }
-
-    static void run(const cv::Mat &in_frame,
-                    const std::map<size_t, Detection> &tracked_persons,
-                    size_t &detected_gest,
-                    std::list<cv::Mat> &batch) {
-            if ( batch.size() < 16) {
-                batch.push_back(in_frame);
-                std::cout<< "Less then 16, size : "<< batch.size() << std::endl;
-            }
-            else {
-                batch.pop_front();
-                batch.push_back(in_frame);
-                std::cout<< "More then 16, size : "<< batch.size() << std::endl;
-            }
-    }
 };
-
+*/
 static std::string fileNameNoExt(const std::string &filepath) {
     auto pos = filepath.rfind('.');
     if (pos == std::string::npos) return filepath;
@@ -295,9 +322,9 @@ int main(int argc, char *argv[]) {
 
                 cv::GOpaque<std::map<size_t, Detection>> tracked = PersonTrack::on(filtered);
 
-                cv::GOpaque<size_t> gest_id = GestureRecogition::on(in, tracked);
+                cv::GArray<cv::GMat> batch = FramesStorage::on(in, tracked);
 
-                return cv::GComputation(cv::GIn(in), cv::GOut(tracked, out_frame, gest_id));
+                return cv::GComputation(cv::GIn(in), cv::GOut(tracked, out_frame));
         });
 
         auto person_detection = cv::gapi::ie::Params<PersoneDetection> {
@@ -306,14 +333,14 @@ int main(int argc, char *argv[]) {
             "CPU"                              // device to use
         }.cfgOutputLayers({"boxes"});
 
-        auto kernels = cv::gapi::kernels<OCVBoundingBoxExtract, OCVPersonTrack, OCVGestureRecogition>();
+        auto kernels = cv::gapi::kernels<OCVBoundingBoxExtract, OCVPersonTrack, OCVFramesStorage>();
         auto networks = cv::gapi::networks(person_detection);
 
         cv::VideoWriter videoWriter;
         cv::Mat frame;
         std::map<size_t, Detection> detections;
         size_t id;
-        auto out_vector = cv::gout(detections, frame, id);
+        auto out_vector = cv::gout(detections, frame);
 
         std::vector<cv::Rect> bbDetections;
 
