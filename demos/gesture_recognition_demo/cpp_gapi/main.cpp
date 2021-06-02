@@ -242,14 +242,14 @@ GAPI_OCV_KERNEL(OCVBoundingBoxExtract, BoundingBoxExtract) {
     }
 };
 
-G_TYPED_KERNEL(FramesStorage, <cv::GArray<cv::GMat>(const cv::GMat, const cv::GOpaque<std::map<size_t, Detection>>/*SOme more inputs??*/)>,
+G_TYPED_KERNEL(Preprocessing, <cv::GMat(const cv::GMat, const cv::GOpaque<std::map<size_t, Detection>>/*SOme more inputs??*/)>,
                         "custom.frames_storage") {
-    static cv::GArrayDesc outMeta(const cv::GMatDesc&, const cv::GOpaqueDesc&) {
-        return cv::empty_array_desc();
+    static cv::GMatDesc outMeta(const cv::GMatDesc&, const cv::GOpaqueDesc&) {
+        return cv::GMatDesc(CV_8U, {1, 3, 16, 224, 224});
     }
 };
 
-GAPI_OCV_KERNEL_ST(OCVFramesStorage, FramesStorage, std::list<cv::Mat>) {
+GAPI_OCV_KERNEL_ST(OCVPreprocessing, Preprocessing, std::list<cv::Mat>) {
     static void setup(const cv::GMatDesc&, const cv::GOpaqueDesc&,
                       std::shared_ptr<std::list<cv::Mat>> &stored_frames) {
         std::list<cv::Mat> frames = {};
@@ -258,44 +258,78 @@ GAPI_OCV_KERNEL_ST(OCVFramesStorage, FramesStorage, std::list<cv::Mat>) {
 
     static void run(const cv::Mat &in_frame,
                     const std::map<size_t, Detection> &tracked_persons,
-                    std::vector<cv::Mat> &batch, 
+                    cv::Mat &prepared_mat, 
                     std::list<cv::Mat> &stored_frames) {
-            stored_frames.clear();
-            if ( stored_frames.size() < 16) {
-                stored_frames.push_back(in_frame);
+        stored_frames.clear();
+        if ( stored_frames.size() < 16) {
+            stored_frames.push_back(in_frame);
+        }
+        else {
+            stored_frames.pop_front();
+            stored_frames.push_back(in_frame);
+
+            int i = 0;
+            for(auto frame = stored_frames.begin(); frame != stored_frames.end(); ++frame) {
+                // Take roi from tracked_persons
+                // cv::Rect roi = tracked_persons.begin()->second.roi;
+                cv::Rect roi = tracked_persons.begin()->second.roi;
+                cv::Mat crop = (*frame)(roi);
+                cv::Mat resized;
+
+                cv::Size sz_dst(224, 224); // Take sizes from net description
+                cv::resize(crop, resized, sz_dst);
+
+                // do stuff from there
+                cv::Mat different_channels[3];
+                int H = 224, W = 224;
+
+                cv::split(resized, different_channels);
+                cv::Mat matB = different_channels[0];
+                cv::Mat matG = different_channels[1];
+                cv::Mat matR = different_channels[2];
+
+                std::copy_n(matB.begin<uint8_t>(), H * W, prepared_mat.begin<uint8_t>() + 0 * 16 * H * W
+                                                                                        + i * H * W);
+                std::copy_n(matG.begin<uint8_t>(), H * W, prepared_mat.begin<uint8_t>() + 1 * 16 * H * W
+                                                                                        + i * H * W);
+                std::copy_n(matR.begin<uint8_t>(), H * W, prepared_mat.begin<uint8_t>() + 2 * 16 * H * W
+                                                                                        + i * H * W);
+                ++i;
             }
-            else {
-                stored_frames.pop_front();
-                stored_frames.push_back(in_frame);
-
-                batch.clear();
-                for(auto frame = stored_frames.begin(); frame != stored_frames.end(); ++frame) {
-                    // Take roi from tracked_persons
-                    cv::Rect roi = tracked_persons.begin()->second.roi;
-                    cv::Mat crop = (*frame)(roi);
-                    cv::Mat resized;
-
-                    cv::Size sz_dst(224, 224); // Take sizes from net description
-                    cv::resize(crop, resized, sz_dst);
-
-                    batch.push_back(resized);
-                }
-            }
+        }
     }
 };
 /*
-G_TYPED_KERNEL(GestureRecogition, <cv::GOpaque<size_t>(cv::GMat, cv::GOpaque<std::map<size_t, Detection>>)>,
-                        "custom.gesture_recoggnition") {
-    static cv::GOpaqueDesc outMeta(const cv::GMatDesc&, const cv::GOpaqueDesc&) {
-        return cv::empty_gopaque_desc();
+G_TYPED_KERNEL(GRNetTranspose, <cv::GMat(cv::GArray<cv::GMat>)>,
+                        "custom.gesture_recoggnition_transpose") {
+    static cv::GMatDesc outMeta(const cv::GArrayDesc&) {
+        // Take {1, 3, 16, 224, 224} from net description
+        return cv::GMatDesc(CV_8U, {1, 3, 16, 224, 224});
     }
+
 };
 
-GAPI_OCV_KERNEL_ST(OCVGestureRecogition, GestureRecogition, std::list<cv::Mat>) {
-    static void setup(const cv::GMatDesc&, const cv::GOpaqueDesc&,
-                      std::shared_ptr<std::list<cv::Mat>> &batch) {
-        std::list<cv::Mat> frames = {};
-        batch = std::make_shared<std::list<cv::Mat>>(frames);
+GAPI_OCV_KERNEL(OCVGRNetTranspose, GRNetTranspose) {
+    static void run(const std::vector<cv::Mat> &in_batch,
+                    cv::Mat &out_mat) {
+        // CV_8UC3 u_int8t
+
+        int num_frames = out_mat.size[2];
+        int H = out_mat.size[3];
+        int W = out_mat.size[4];
+        for(int frame = 0; frame < num_frames; ++frame) {
+            cv::Mat different_channels[3];
+
+            cv::split(in_batch[frame], different_channels);
+            cv::Mat matB = different_channels[0];
+            cv::Mat matG = different_channels[1];
+            cv::Mat matR = different_channels[2];
+
+            std::copy_n(matB.begin<uint8_t>(),  , out_mat.begin<uint8_t>() + frame + 0 * 16 * H * W);
+            std::copy_n(matG.begin<uint8_t>(),  , out_mat.begin<uint8_t>() + frame + 1 * 16 * H * W);
+            std::copy_n(matR.begin<uint8_t>(),  , out_mat.begin<uint8_t>() + frame + 2 * 16 * H * W);
+        }
+
     }
 };
 */
@@ -322,7 +356,7 @@ int main(int argc, char *argv[]) {
 
                 cv::GOpaque<std::map<size_t, Detection>> tracked = PersonTrack::on(filtered);
 
-                cv::GArray<cv::GMat> batch = FramesStorage::on(in, tracked);
+                cv::GMat batch = Preprocessing::on(in, tracked);
 
                 return cv::GComputation(cv::GIn(in), cv::GOut(tracked, out_frame));
         });
@@ -333,7 +367,7 @@ int main(int argc, char *argv[]) {
             "CPU"                              // device to use
         }.cfgOutputLayers({"boxes"});
 
-        auto kernels = cv::gapi::kernels<OCVBoundingBoxExtract, OCVPersonTrack, OCVFramesStorage>();
+        auto kernels = cv::gapi::kernels<OCVBoundingBoxExtract, OCVPersonTrack, OCVPreprocessing>();
         auto networks = cv::gapi::networks(person_detection);
 
         cv::VideoWriter videoWriter;
