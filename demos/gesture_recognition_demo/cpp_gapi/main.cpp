@@ -59,11 +59,11 @@ void setInput(cv::GStreamingCompiled stream, const std::string& input ) {
     }
 }
 
-G_API_NET(PersoneDetection, <cv::GMat(cv::GMat)>, "perspne_detection");
-
 const float TRACKER_SCORE_THRESHOLD = 0.4;
 const float TRACKER_IOU_THRESHOLD = 0.3;
 const int   WAITING_PERSON_DURATION = 8;
+
+G_API_NET(PersoneDetection, <cv::GMat(cv::GMat)>, "perspne_detection");
 
 struct Detection
 {
@@ -242,10 +242,10 @@ GAPI_OCV_KERNEL(OCVBoundingBoxExtract, BoundingBoxExtract) {
     }
 };
 
-G_TYPED_KERNEL(Preprocessing, <cv::GMat(const cv::GMat, const cv::GOpaque<std::map<size_t, Detection>>/*SOme more inputs??*/)>,
+G_TYPED_KERNEL(Preprocessing, <cv::GArray<cv::GMat>(const cv::GMat, const cv::GOpaque<std::map<size_t, Detection>>/*SOme more inputs??*/)>,
                         "custom.frames_storage") {
-    static cv::GMatDesc outMeta(const cv::GMatDesc&, const cv::GOpaqueDesc&) {
-        return cv::GMatDesc(CV_8U, {1, 3, 16, 224, 224});
+    static cv::GArrayDesc outMeta(const cv::GMatDesc&, const cv::GOpaqueDesc&) {
+        return cv::empty_array_desc();
     }
 };
 
@@ -258,7 +258,7 @@ GAPI_OCV_KERNEL_ST(OCVPreprocessing, Preprocessing, std::list<cv::Mat>) {
 
     static void run(const cv::Mat &in_frame,
                     const std::map<size_t, Detection> &tracked_persons,
-                    cv::Mat &prepared_mat, 
+                    std::vector<cv::Mat> &prepared_mat, 
                     std::list<cv::Mat> &stored_frames) {
         stored_frames.clear();
         if ( stored_frames.size() < 16) {
@@ -274,65 +274,34 @@ GAPI_OCV_KERNEL_ST(OCVPreprocessing, Preprocessing, std::list<cv::Mat>) {
                 // cv::Rect roi = tracked_persons.begin()->second.roi;
                 cv::Rect roi = tracked_persons.begin()->second.roi;
                 cv::Mat crop = (*frame)(roi);
-                cv::Mat resized;
 
-                cv::Size sz_dst(224, 224); // Take sizes from net description
+                cv::Mat resized;
+                int H = 224, W = 224; // Take sizes from net description
+                cv::Size sz_dst(H, W);
                 cv::resize(crop, resized, sz_dst);
 
                 // do stuff from there
                 cv::Mat different_channels[3];
-                int H = 224, W = 224;
 
                 cv::split(resized, different_channels);
                 cv::Mat matB = different_channels[0];
                 cv::Mat matG = different_channels[1];
                 cv::Mat matR = different_channels[2];
 
-                std::copy_n(matB.begin<uint8_t>(), H * W, prepared_mat.begin<uint8_t>() + 0 * 16 * H * W
+                std::copy_n(matB.begin<uint8_t>(), H * W, prepared_mat[0].begin<uint8_t>() + 0 * 16 * H * W
                                                                                         + i * H * W);
-                std::copy_n(matG.begin<uint8_t>(), H * W, prepared_mat.begin<uint8_t>() + 1 * 16 * H * W
+                std::copy_n(matG.begin<uint8_t>(), H * W, prepared_mat[0].begin<uint8_t>() + 1 * 16 * H * W
                                                                                         + i * H * W);
-                std::copy_n(matR.begin<uint8_t>(), H * W, prepared_mat.begin<uint8_t>() + 2 * 16 * H * W
+                std::copy_n(matR.begin<uint8_t>(), H * W, prepared_mat[0].begin<uint8_t>() + 2 * 16 * H * W
                                                                                         + i * H * W);
                 ++i;
             }
         }
     }
 };
-/*
-G_TYPED_KERNEL(GRNetTranspose, <cv::GMat(cv::GArray<cv::GMat>)>,
-                        "custom.gesture_recoggnition_transpose") {
-    static cv::GMatDesc outMeta(const cv::GArrayDesc&) {
-        // Take {1, 3, 16, 224, 224} from net description
-        return cv::GMatDesc(CV_8U, {1, 3, 16, 224, 224});
-    }
 
-};
+G_API_NET(ActionRecognition, <cv::GMat(cv::GMat)>, "action_recognition");
 
-GAPI_OCV_KERNEL(OCVGRNetTranspose, GRNetTranspose) {
-    static void run(const std::vector<cv::Mat> &in_batch,
-                    cv::Mat &out_mat) {
-        // CV_8UC3 u_int8t
-
-        int num_frames = out_mat.size[2];
-        int H = out_mat.size[3];
-        int W = out_mat.size[4];
-        for(int frame = 0; frame < num_frames; ++frame) {
-            cv::Mat different_channels[3];
-
-            cv::split(in_batch[frame], different_channels);
-            cv::Mat matB = different_channels[0];
-            cv::Mat matG = different_channels[1];
-            cv::Mat matR = different_channels[2];
-
-            std::copy_n(matB.begin<uint8_t>(),  , out_mat.begin<uint8_t>() + frame + 0 * 16 * H * W);
-            std::copy_n(matG.begin<uint8_t>(),  , out_mat.begin<uint8_t>() + frame + 1 * 16 * H * W);
-            std::copy_n(matR.begin<uint8_t>(),  , out_mat.begin<uint8_t>() + frame + 2 * 16 * H * W);
-        }
-
-    }
-};
-*/
 static std::string fileNameNoExt(const std::string &filepath) {
     auto pos = filepath.rfind('.');
     if (pos == std::string::npos) return filepath;
@@ -356,9 +325,11 @@ int main(int argc, char *argv[]) {
 
                 cv::GOpaque<std::map<size_t, Detection>> tracked = PersonTrack::on(filtered);
 
-                cv::GMat batch = Preprocessing::on(in, tracked);
+                cv::GArray<cv::GMat> batch = Preprocessing::on(in, tracked);
 
-                return cv::GComputation(cv::GIn(in), cv::GOut(tracked, out_frame));
+                cv::GArray<cv::GMat> result = cv::gapi::infer2<ActionRecognition>(in, batch);
+
+                return cv::GComputation(cv::GIn(in), cv::GOut( out_frame, tracked, result));
         });
 
         auto person_detection = cv::gapi::ie::Params<PersoneDetection> {
@@ -367,14 +338,21 @@ int main(int argc, char *argv[]) {
             "CPU"                              // device to use
         }.cfgOutputLayers({"boxes"});
 
+        auto action_recognition = cv::gapi::ie::Params<ActionRecognition> {
+            FLAGS_m_a,                         // path to model
+            fileNameNoExt(FLAGS_m_a) + ".bin", // path to weights
+            "CPU"                              // device to use
+        };
+
         auto kernels = cv::gapi::kernels<OCVBoundingBoxExtract, OCVPersonTrack, OCVPreprocessing>();
-        auto networks = cv::gapi::networks(person_detection);
+        auto networks = cv::gapi::networks(person_detection, action_recognition);
 
         cv::VideoWriter videoWriter;
         cv::Mat frame;
         std::map<size_t, Detection> detections;
+        std::vector<cv::Mat> actions_weights;
         size_t id;
-        auto out_vector = cv::gout(detections, frame);
+        auto out_vector = cv::gout(frame, detections, actions_weights);
 
         std::vector<cv::Rect> bbDetections;
 
@@ -394,6 +372,34 @@ int main(int argc, char *argv[]) {
                     cv::rectangle(frame, bb, cv::Scalar(0, 255, 0));
                 }
                 // std::cout<< 1 <<std::endl;
+
+                {
+                    int id = detections.begin()->first;
+                    cv::Rect bb = detections.begin()->second.roi;
+
+                    cv::putText(frame, std::to_string(id),
+                                cv::Point(bb.x, bb.y), 
+                                cv::FONT_HERSHEY_SIMPLEX,
+                                1, cv::Scalar(0, 0, 255));
+                    cv::rectangle(frame, bb, cv::Scalar(0, 0, 255));
+
+                    int max_action_value = 0;
+                    float max_weight = 0.;
+
+                    std::cout<< "Sizes: " << actions_weights.size()<<std::endl;
+/*
+                    for(size_t i = 0 ; i < actions_weights.size(); i++) {
+                        if (actions_weights[i] > max_weight) {
+                            max_weight = actions_weights[i];
+                            max_action_value = i;
+                        }
+                    }
+*/
+                    cv::putText(frame, ACTIONS_MAP[max_action_value],
+                                cv::Point(0, 0), 
+                                cv::FONT_HERSHEY_SIMPLEX,
+                                1, cv::Scalar(0, 0, 255));
+                }
 
                 if (!videoWriter.isOpened()) {
                     videoWriter.open(FLAGS_o, cv::VideoWriter::fourcc('I', 'Y', 'U', 'V'), 25, cv::Size(frame.size()));
