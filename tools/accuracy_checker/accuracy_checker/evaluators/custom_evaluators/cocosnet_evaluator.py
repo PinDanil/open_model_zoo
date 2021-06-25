@@ -36,7 +36,7 @@ from ...utils import extract_image_representations, contains_all, get_path
 class CocosnetEvaluator(BaseEvaluator):
     def __init__(
             self, dataset_config, launcher, preprocessor_mask, preprocessor_image,
-            gan_model, check_model
+            gan_model, check_model, orig_config
     ):
         self.launcher = launcher
         self.dataset_config = dataset_config
@@ -47,6 +47,7 @@ class CocosnetEvaluator(BaseEvaluator):
         self.metric_executor = None
         self.test_model = gan_model
         self.check_model = check_model
+        self.config = orig_config
         self._metrics_results = []
         self._part_by_name = {
             'gan_network': self.test_model,
@@ -55,7 +56,7 @@ class CocosnetEvaluator(BaseEvaluator):
             self._part_by_name.update({'verification_network': self.check_model})
 
     @classmethod
-    def from_configs(cls, config, delayed_model_loading=False):
+    def from_configs(cls, config, delayed_model_loading=False, orig_config=None):
         launcher_config = config['launchers'][0]
         dataset_config = config['datasets']
 
@@ -94,7 +95,7 @@ class CocosnetEvaluator(BaseEvaluator):
             check_model = None
 
         return cls(
-            dataset_config, launcher, preprocessor_mask, preprocessor_image, gan_model, check_model
+            dataset_config, launcher, preprocessor_mask, preprocessor_image, gan_model, check_model, orig_config
         )
 
     @staticmethod
@@ -194,6 +195,7 @@ class CocosnetEvaluator(BaseEvaluator):
                     self.compute_metrics(
                         print_results=True, ignore_results_formatting=ignore_results_formatting
                     )
+                    self.write_results_to_csv(kwargs.get('csv_result'), ignore_results_formatting, metric_interval)
 
         if _progress_reporter:
             _progress_reporter.finish()
@@ -238,9 +240,6 @@ class CocosnetEvaluator(BaseEvaluator):
         result_presenters = self.metric_executor.get_metric_presenters()
         for presenter, metric_result in zip(result_presenters, self._metrics_results):
             presenter.write_result(metric_result, ignore_results_formatting)
-
-    def reset_progress(self, progress_reporter):
-        progress_reporter.reset(self.dataset.size)
 
     def release(self):
         self.test_model.release()
@@ -331,6 +330,10 @@ class CocosnetEvaluator(BaseEvaluator):
             ignore_results_formatting = config.get('ignore_results_formatting', False)
         return compute_intermediate_metric_res, metric_interval, ignore_results_formatting
 
+    @property
+    def dataset_size(self):
+        return self.dataset.size
+
 
 class BaseModel:
     def __init__(self, network_info, launcher, delayed_model_loading=False):
@@ -356,10 +359,16 @@ class BaseModel:
             if len(model_list) > 1:
                 raise ConfigError('Several suitable models found')
             model = model_list[0]
-            print_info('{} - Found model: {}'.format(net_type, model))
+        accepted_suffixes = ['.blob', '.xml']
+        if model.suffix not in accepted_suffixes:
+            raise ConfigError('Models with following suffixes are allowed: {}'.format(accepted_suffixes))
+        print_info('{} - Found model: {}'.format(net_type, model))
         if model.suffix == '.blob':
             return model, None
         weights = get_path(network_info.get('weights', model.parent / model.name.replace('xml', 'bin')))
+        accepted_weights_suffixes = ['.bin']
+        if weights.suffix not in accepted_weights_suffixes:
+            raise ConfigError('Weights with following suffixes are allowed: {}'.format(accepted_weights_suffixes))
         print_info('{} - Found weights: {}'.format(net_type, weights))
 
         return model, weights

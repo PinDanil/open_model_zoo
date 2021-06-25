@@ -30,7 +30,7 @@ from ...logging import print_info
 
 
 class ColorizationEvaluator(BaseEvaluator):
-    def __init__(self, dataset_config, launcher, test_model, check_model):
+    def __init__(self, dataset_config, launcher, test_model, check_model, orig_config):
         self.dataset_config = dataset_config
         self.preprocessing_executor = None
         self.preprocessor = None
@@ -40,6 +40,7 @@ class ColorizationEvaluator(BaseEvaluator):
         self.launcher = launcher
         self.test_model = test_model
         self.check_model = check_model
+        self.config = orig_config
         self._metrics_results = []
         self._part_by_name = {
             'colorization_network': self.test_model,
@@ -47,7 +48,7 @@ class ColorizationEvaluator(BaseEvaluator):
         }
 
     @classmethod
-    def from_configs(cls, config, delayed_model_loading=False):
+    def from_configs(cls, config, delayed_model_loading=False, orig_config=None):
         dataset_config = config['datasets']
         launcher_settings = config['launchers'][0]
         supported_frameworks = ['dlsdk']
@@ -81,7 +82,7 @@ class ColorizationEvaluator(BaseEvaluator):
         check_model = ColorizationCheckModel(
             network_info.get('verification_network', {}), launcher, delayed_model_loading
         )
-        return cls(dataset_config, launcher, test_model, check_model)
+        return cls(dataset_config, launcher, test_model, check_model, orig_config)
 
     def process_dataset(
             self, subset=None,
@@ -148,6 +149,7 @@ class ColorizationEvaluator(BaseEvaluator):
                     self.compute_metrics(
                         print_results=True, ignore_results_formatting=ignore_results_formatting
                     )
+                    self.write_results_to_csv(kwargs.get('csv_result'), ignore_results_formatting, metric_interval)
 
         if _progress_reporter:
             _progress_reporter.finish()
@@ -173,6 +175,10 @@ class ColorizationEvaluator(BaseEvaluator):
         result_presenters = self.metric_executor.get_metric_presenters()
         for presenter, metric_result in zip(result_presenters, self._metrics_results):
             presenter.write_results(metric_result, ignore_results_formatting)
+
+    @property
+    def dataset_size(self):
+        return self.dataset.size
 
     def release(self):
         self.test_model.release()
@@ -316,10 +322,16 @@ class BaseModel:
             if len(model_list) > 1:
                 raise ConfigError('Several suitable models found')
             model = model_list[0]
-            print_info('{} - Found model: {}'.format(net_type, model))
+        accepted_suffixes = ['.blob', '.xml']
+        if model.suffix not in accepted_suffixes:
+            raise ConfigError('Models with following suffixes are allowed: {}'.format(accepted_suffixes))
+        print_info('{} - Found model: {}'.format(net_type, model))
         if model.suffix == '.blob':
             return model, None
         weights = get_path(network_info.get('weights', model.parent / model.name.replace('xml', 'bin')))
+        accepted_weights_suffixes = ['.bin']
+        if weights.suffix not in accepted_weights_suffixes:
+            raise ConfigError('Weights with following suffixes are allowed: {}'.format(accepted_weights_suffixes))
         print_info('{} - Found weights: {}'.format(net_type, weights))
 
         return model, weights

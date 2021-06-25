@@ -31,7 +31,7 @@ from ...logging import print_info
 
 
 class SequentialActionRecognitionEvaluator(BaseEvaluator):
-    def __init__(self, dataset_config, launcher, model):
+    def __init__(self, dataset_config, launcher, model, orig_config):
         self.dataset_config = dataset_config
         self.preprocessing_executor = None
         self.preprocessor = None
@@ -40,10 +40,11 @@ class SequentialActionRecognitionEvaluator(BaseEvaluator):
         self.metric_executor = None
         self.launcher = launcher
         self.model = model
+        self.config = orig_config
         self._metrics_results = []
 
     @classmethod
-    def from_configs(cls, config, delayed_model_loading=False):
+    def from_configs(cls, config, delayed_model_loading=False, orig_config=None):
         dataset_config = config['datasets']
         launcher_config = config['launchers'][0]
         if launcher_config['framework'] == 'dlsdk' and 'device' not in launcher_config:
@@ -54,7 +55,7 @@ class SequentialActionRecognitionEvaluator(BaseEvaluator):
             config.get('network_info', {}), launcher, config.get('_models', []), config.get('_model_is_blob'),
             delayed_model_loading
         )
-        return cls(dataset_config, launcher, model)
+        return cls(dataset_config, launcher, model, orig_config)
 
     def process_dataset(
             self, subset=None,
@@ -117,6 +118,7 @@ class SequentialActionRecognitionEvaluator(BaseEvaluator):
                     self.compute_metrics(
                         print_results=True, ignore_results_formatting=ignore_results_formatting
                     )
+                    self.write_results_to_csv(kwargs.get('csv_result'), ignore_results_formatting, metric_interval)
 
         if _progress_reporter:
             _progress_reporter.finish()
@@ -255,6 +257,10 @@ class SequentialActionRecognitionEvaluator(BaseEvaluator):
             metric_interval = config.get('metrics_interval', 1000)
             ignore_results_formatting = config.get('ignore_results_formatting', False)
         return compute_intermediate_metric_res, metric_interval, ignore_results_formatting
+
+    @property
+    def dataset_size(self):
+        return self.dataset.size
 
 
 class BaseModel:
@@ -465,11 +471,18 @@ class EncoderDLSDKModel(BaseModel):
             if len(model_list) > 1:
                 raise ConfigError('Several suitable models for {} found'.format(self.default_model_suffix))
             model = model_list[0]
-            print_info('{} - Found model: {}'.format(self.default_model_suffix, model))
+        accepted_suffixes = ['.blob', '.xml']
+        if model.suffix not in accepted_suffixes:
+            raise ConfigError('Models with following suffixes are allowed: {}'.format(accepted_suffixes))
+        print_info('{} - Found model: {}'.format(self.default_model_suffix, model))
         if model.suffix == '.blob':
             return model, None
         weights = get_path(network_info.get('weights', model.parent / model.name.replace('xml', 'bin')))
+        accepted_weights_suffixes = ['.bin']
+        if weights.suffix not in accepted_weights_suffixes:
+            raise ConfigError('Weights with following suffixes are allowed: {}'.format(accepted_weights_suffixes))
         print_info('{} - Found weights: {}'.format(self.default_model_suffix, weights))
+
         return model, weights
 
     def load_network(self, network, launcher):
@@ -545,11 +558,18 @@ class DecoderDLSDKModel(BaseModel):
             if len(model_list) > 1:
                 raise ConfigError('Several suitable models for {} found'.format(self.default_model_suffix))
             model = model_list[0]
-            print_info('{} - Found model: {}'.format(self.default_model_suffix, model))
+        accepted_suffixes = ['.blob', '.xml']
+        if model.suffix not in accepted_suffixes:
+            raise ConfigError('Models with following suffixes are allowed: {}'.format(accepted_suffixes))
+        print_info('{} - Found model: {}'.format(self.default_model_suffix, model))
         if model.suffix == '.blob':
             return model, None
         weights = get_path(network_info.get('weights', model.parent / model.name.replace('xml', 'bin')))
+        accepted_weights_suffixes = ['.bin']
+        if weights.suffix not in accepted_weights_suffixes:
+            raise ConfigError('Weights with following suffixes are allowed: {}'.format(accepted_weights_suffixes))
         print_info('{} - Found weights: {}'.format(self.default_model_suffix, weights))
+
         return model, weights
 
     def load_model(self, network_info, launcher, log=False):
@@ -624,6 +644,10 @@ class EncoderONNXModel(BaseModel):
             if len(model_list) > 1:
                 raise ConfigError('Several suitable models for {} found'.format(self.default_model_suffix))
             model = model_list[0]
+        accepted_suffixes = ['.onnx']
+        if model.suffix not in accepted_suffixes:
+            raise ConfigError('Models with following suffixes are allowed: {}'.format(accepted_suffixes))
+        print_info('{} - Found model: {}'.format(self.default_model_suffix, model))
 
         return model
 
@@ -662,6 +686,10 @@ class DecoderONNXModel(BaseModel):
             if len(model_list) > 1:
                 raise ConfigError('Several suitable models for {} found'.format(self.default_model_suffix))
             model = model_list[0]
+        accepted_suffixes = ['.onnx']
+        if model.suffix not in accepted_suffixes:
+            raise ConfigError('Models with following suffixes are allowed: {}'.format(accepted_suffixes))
+        print_info('{} - Found model: {}'.format(self.default_model_suffix, model))
 
         return model
 
